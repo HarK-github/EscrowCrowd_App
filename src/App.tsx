@@ -109,7 +109,10 @@ function App() {
     }
   };
 
-
+  const disconnectWallet = () => {
+    setPubKey('');
+    setBalance(null);
+  };
 
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -181,7 +184,11 @@ function App() {
           </div>
 
           <div>
-            {!pubKey && (
+            {pubKey ? (
+              <button onClick={disconnectWallet} className="bg-foreground text-background px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
+                <LogOut size={16} /> Disconnect
+              </button>
+            ) : (
               <button onClick={connectWallet} className="bg-foreground text-background px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
                 <Wallet size={16} /> Connect Wallet
               </button>
