@@ -5,7 +5,7 @@ import {
   isConnected,
   isAllowed,
   setAllowed,
-  getUserInfo,
+  getAddress,
   signTransaction
 } from '@stellar/freighter-api';
 import { Horizon, TransactionBuilder, Networks, Asset, Operation } from '@stellar/stellar-sdk';
@@ -73,10 +73,12 @@ function App() {
     try {
       const allowed = await isAllowed();
       if (allowed) {
-        const userInfo = await getUserInfo();
-        if (userInfo.publicKey) {
-          setPubKey(userInfo.publicKey);
-          fetchBalance(userInfo.publicKey);
+        const { address, error } = await getAddress();
+        if (address && !error) {
+          setPubKey(address);
+          fetchBalance(address);
+        } else if (error) {
+          console.error("Freighter address error:", error);
         }
       }
     } catch (e) {
