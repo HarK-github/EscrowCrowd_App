@@ -133,7 +133,7 @@ function App() {
         });
 
       const transaction = new TransactionBuilder(sourceAccount, {
-        fee: Horizon.BASE_FEE,
+        fee: '100',
         networkPassphrase: NETWORK_PASSPHRASE
       })
         .addOperation(operation)
