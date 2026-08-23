@@ -142,13 +142,16 @@ function App() {
 
       setTxMessage('Please sign in Freighter...');
       const xdr = transaction.toXDR();
-      const signedTxXdr = await signTransaction(xdr, {
-        network: "TESTNET",
-        accountToSign: pubKey
+      const signResponse = await signTransaction(xdr, {
+        networkPassphrase: NETWORK_PASSPHRASE,
       });
 
+      if (signResponse.error) {
+        throw new Error(signResponse.error);
+      }
+
       setTxMessage('Submitting to network...');
-      const signedTx = TransactionBuilder.fromXDR(signedTxXdr, NETWORK_PASSPHRASE);
+      const signedTx = TransactionBuilder.fromXDR(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
       const response = await server.submitTransaction(signedTx);
 
       setTxStatus('success');
