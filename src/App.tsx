@@ -126,11 +126,27 @@ function App() {
     try {
       const sourceAccount = await server.loadAccount(pubKey);
       
-      const operation = Operation.payment({
+      // Check if destination exists
+      let operation;
+      try {
+        await server.loadAccount(toAddress);
+        // Destination exists, use normal payment
+        operation = Operation.payment({
           destination: toAddress,
           asset: Asset.native(),
           amount: amount.toString()
         });
+      } catch (err: any) {
+        // If 404, destination doesn't exist. We must create the account instead.
+        if (err.response && err.response.status === 404) {
+          operation = Operation.createAccount({
+            destination: toAddress,
+            startingBalance: amount.toString()
+          });
+        } else {
+          throw err;
+        }
+      }
 
       const transaction = new TransactionBuilder(sourceAccount, {
         fee: '100',
