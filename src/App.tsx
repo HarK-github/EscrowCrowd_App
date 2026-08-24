@@ -8,7 +8,10 @@ import {
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
-import { Horizon, TransactionBuilder, Networks as StellarNetworks, Asset, Operation } from '@stellar/stellar-sdk';
+import { Horizon, TransactionBuilder, Networks as StellarNetworks, Asset, Operation, Contract, rpc, nativeToScVal, scValToNative, Account, Keypair } from '@stellar/stellar-sdk';
+
+const CONTRACT_ID = 'CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS';
+const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org:443');
 
 StellarWalletsKit.init({
   network: Networks.TESTNET,
@@ -40,12 +43,12 @@ function App() {
   // Freighter State
   const [pubKey, setPubKey] = useState('');
   const [balance, setBalance] = useState<string | null>(null);
-  const [toAddress, setToAddress] = useState('');
   const [amount, setAmount] = useState('');
   const [txStatus, setTxStatus] = useState('');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
   const [appError, setAppError] = useState('');
+  const [campaign, setCampaign] = useState<any>(null);
 
   // Auto-scroll when connected
   useEffect(() => {
@@ -73,9 +76,37 @@ function App() {
   const testimonialText = "Stellar revolutionized how we handle decentralized payments using lightning-fast finality. We are now driving global transactions quicker than we ever imagined! Stellar revolutionized how we handle financial insights.";
   const words = testimonialText.split(" ");
 
-  // Auto-connect if already allowed (optional, keeping minimal for kit)
+  // Fetch Campaign State
+  const fetchCampaignState = async () => {
+    try {
+      const dummyAccount = new Account(Keypair.random().publicKey(), '0');
+      const contract = new Contract(CONTRACT_ID);
+      const tx = new TransactionBuilder(dummyAccount, { fee: '100', networkPassphrase: StellarNetworks.TESTNET })
+        .addOperation(contract.call('get_campaign_state'))
+        .setTimeout(30)
+        .build();
+        
+      const response = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationSuccess(response)) {
+        const resultVal = response.result.retval;
+        const state = scValToNative(resultVal);
+        
+        setCampaign({
+          creator: state.creator,
+          deadline: Number(state.deadline),
+          goal: Number(state.goal) / 10000000,
+          status: state.status,
+          token: state.token,
+          totalRaised: Number(state.total_raised) / 10000000,
+        });
+      }
+    } catch (e) {
+      console.error("Failed to fetch campaign state:", e);
+    }
+  };
+
   useEffect(() => { 
-    // Usually kit handles its own session restoration
+    fetchCampaignState();
   }, []);
 
   const fetchBalance = async (publicKey: string) => {
@@ -126,7 +157,7 @@ function App() {
 
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!toAddress || !amount) return;
+    if (!amount) return;
     
     // Check sufficient balance
     if (balance === "Not Funded" || parseFloat(balance || "0") < parseFloat(amount)) {
@@ -141,38 +172,30 @@ function App() {
 
     try {
       const sourceAccount = await server.loadAccount(pubKey);
+      const contract = new Contract(CONTRACT_ID);
+      const amountStroops = Math.floor(parseFloat(amount) * 10000000).toString();
       
-      // Check if destination exists
-      let operation;
-      try {
-        await server.loadAccount(toAddress);
-        // Destination exists, use normal payment
-        operation = Operation.payment({
-          destination: toAddress,
-          asset: Asset.native(),
-          amount: amount.toString()
-        });
-      } catch (err: any) {
-        // If 404, destination doesn't exist. We must create the account instead.
-        if (err.response && err.response.status === 404) {
-          operation = Operation.createAccount({
-            destination: toAddress,
-            startingBalance: amount.toString()
-          });
-        } else {
-          throw err;
-        }
-      }
+      const operation = contract.call('donate',
+        nativeToScVal(pubKey, { type: 'address' }),
+        nativeToScVal(amountStroops, { type: 'i128' })
+      );
 
-      const dynamicFee = await fetchNetworkFee();
-      
-      const transaction = new TransactionBuilder(sourceAccount, {
-        fee: dynamicFee,
+      let transaction = new TransactionBuilder(sourceAccount, {
+        fee: '100',
         networkPassphrase: NETWORK_PASSPHRASE
       })
         .addOperation(operation)
         .setTimeout(30)
         .build();
+        
+      setTxMessage('Simulating transaction...');
+      const simRes = await rpcServer.simulateTransaction(transaction);
+      if (!rpc.Api.isSimulationSuccess(simRes)) {
+        throw new Error("Transaction simulation failed or rejected by contract.");
+      }
+      
+      // Assemble the transaction using the simulation result for correct fees/auth
+      transaction = rpc.assembleTransaction(transaction, NETWORK_PASSPHRASE, simRes).built;
 
       setTxMessage('Please sign in your wallet...');
       const xdr = transaction.toXDR();
@@ -186,14 +209,28 @@ function App() {
 
       setTxMessage('Submitting to network...');
       const signedTx = TransactionBuilder.fromXDR(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
-      const response = await server.submitTransaction(signedTx);
-
-      setTxStatus('success');
-      setTxMessage('Transaction successful!');
-      setTxHash(response.hash);
-      fetchBalance(pubKey);
-      setToAddress('');
-      setAmount('');
+      const sendRes = await rpcServer.sendTransaction(signedTx);
+      
+      if (sendRes.status === 'PENDING') {
+        setTxMessage('Waiting for confirmation...');
+        let getTxRes = await rpcServer.getTransaction(sendRes.hash);
+        while (getTxRes.status === 'NOT_FOUND') {
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            getTxRes = await rpcServer.getTransaction(sendRes.hash);
+        }
+        if (getTxRes.status === 'SUCCESS') {
+            setTxStatus('success');
+            setTxMessage('Donation successful!');
+            setTxHash(sendRes.hash);
+            fetchBalance(pubKey);
+            setAmount('');
+            fetchCampaignState(); // Update UI with new state
+        } else {
+            throw new Error('Transaction failed on network.');
+        }
+      } else {
+          throw new Error('Transaction submission failed.');
+      }
     } catch (error: any) {
       setTxStatus('error');
       setTxMessage(error?.message || "Transaction failed");
@@ -317,66 +354,87 @@ function App() {
             />
           ) : (
             <div className="absolute z-40 max-w-5xl w-[90%] grid md:grid-cols-2 gap-6 p-6">
-              {/* Wallet Panel */}
-              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl">
-                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                  <Wallet /> Wallet Info
-                </h2>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">Connected Account</p>
-                    <div className="font-mono text-sm break-all opacity-80">
-                      {pubKey}
+              {/* Campaign / Wallet Panel */}
+              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col justify-between">
+                <div>
+                  <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                    <Wallet /> Crowdfund Status
+                  </h2>
+                  <div className="space-y-6">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</p>
+                      <div className="font-mono text-xs break-all opacity-80">
+                        {pubKey}
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">XLM Balance</p>
-                    <div className="text-5xl font-bold font-serif italic">
-                      {balance !== null ? `${balance}` : '...'}
-                    </div>
-                    {balance === "Not Funded" && (
-                      <a href="https://laboratory.stellar.org/#account-creator?network=test" target="_blank" rel="noreferrer" className="text-sm underline mt-2 block opacity-70 hover:opacity-100">
-                        Fund account on Stellar Laboratory
-                      </a>
+                    {campaign && (
+                      <>
+                        <div>
+                          <div className="flex justify-between items-end mb-2">
+                            <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</p>
+                            <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
+                          </div>
+                          <div className="w-full bg-white/10 rounded-full h-3">
+                            <div 
+                              className="bg-white h-3 rounded-full" 
+                              style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
+                            ></div>
+                          </div>
+                        </div>
+                        <div className="flex justify-between items-center bg-white/5 p-4 rounded-lg">
+                          <div>
+                            <p className="text-xs text-muted-foreground uppercase">Status</p>
+                            <p className="font-semibold capitalize">{campaign.status}</p>
+                          </div>
+                          <div className="text-right">
+                            <p className="text-xs text-muted-foreground uppercase">Balance</p>
+                            <p className="font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</p>
+                          </div>
+                        </div>
+                      </>
                     )}
                   </div>
                 </div>
               </div>
 
-              {/* Send Panel */}
+              {/* Donate Panel */}
               <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl">
                 <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                  <Send /> Send XLM
+                  <Send /> Support Campaign
                 </h2>
                 <form onSubmit={handleSendTransaction} className="space-y-4">
                   <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Destination Address</label>
+                    <label className="block text-sm font-medium text-muted-foreground mb-1">Donation Amount (XLM)</label>
                     <input
-                      type="text" placeholder="G..." value={toAddress} onChange={(e) => setToAddress(e.target.value)} required
-                      className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-1 focus:ring-white/50 font-mono text-sm"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-sm font-medium text-muted-foreground mb-1">Amount (XLM)</label>
-                    <input
-                      type="number" step="0.0000001" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} required
+                      type="number" step="1" placeholder="10" value={amount} onChange={(e) => setAmount(e.target.value)} required
                       className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-1 focus:ring-white/50 font-mono text-sm"
                     />
                   </div>
                   <button
                     type="submit"
-                    disabled={txStatus === 'loading' || !toAddress || !amount || balance === "Not Funded"}
+                    disabled={txStatus === 'loading' || !amount || balance === "Not Funded"}
                     className="w-full mt-2 bg-white text-black py-3 rounded-lg font-semibold hover:bg-white/90 disabled:opacity-50 transition-all flex justify-center items-center gap-2"
                   >
-                    {txStatus === 'loading' ? 'Processing...' : 'Submit Transaction'}
+                    {txStatus === 'loading' ? (
+                      <><span className="animate-spin h-4 w-4 border-2 border-black border-t-transparent rounded-full"></span> Processing...</>
+                    ) : 'Donate XLM'}
                   </button>
                 </form>
 
                 {txStatus && (
-                  <div className="mt-4 p-3 rounded-lg border border-white/10 bg-black/20 text-sm">
-                    <strong className="block">{txMessage}</strong>
+                  <div className={`mt-4 p-4 rounded-lg border text-sm flex flex-col gap-2 ${txStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'}`}>
+                    <div className="flex items-center gap-2">
+                      {txStatus === 'loading' ? (
+                         <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                      ) : txStatus === 'error' ? (
+                         <span className="text-lg">❌</span>
+                      ) : (
+                         <span className="text-lg">✅</span>
+                      )}
+                      <strong className="block">{txMessage}</strong>
+                    </div>
                     {txHash && (
-                      <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 mt-1 opacity-70 hover:opacity-100 underline">
+                      <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 opacity-70 hover:opacity-100 underline">
                         View on Stellar Expert <ExternalLink size={12} />
                       </a>
                     )}
