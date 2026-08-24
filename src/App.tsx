@@ -160,8 +160,10 @@ function App() {
         }
       }
 
+      const dynamicFee = await fetchNetworkFee();
+      
       const transaction = new TransactionBuilder(sourceAccount, {
-        fee: '100',
+        fee: dynamicFee,
         networkPassphrase: NETWORK_PASSPHRASE
       })
         .addOperation(operation)
