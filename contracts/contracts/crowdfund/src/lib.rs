@@ -95,8 +95,37 @@ impl CrowdfundContract {
         env.storage().instance().extend_ttl(100_000, 100_000);
     }
 
-    pub fn get_campaign_state(env: Env) {
-        // Placeholder
+    /// Read-only method to get current campaign state
+    pub fn get_campaign_state(env: Env) -> CampaignState {
+        if !env.storage().instance().has(&DataKey::Creator) {
+            panic!("Campaign not initialized");
+        }
+        let creator = env.storage().instance().get(&DataKey::Creator).unwrap();
+        let token = env.storage().instance().get(&DataKey::Token).unwrap();
+        let goal = env.storage().instance().get(&DataKey::Goal).unwrap();
+        let deadline: u64 = env.storage().instance().get(&DataKey::Deadline).unwrap();
+        let total_raised = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
+
+        let current_time = env.ledger().timestamp();
+        
+        let status = if current_time >= deadline {
+            if total_raised >= goal {
+                String::from_str(&env, "completed")
+            } else {
+                String::from_str(&env, "failed")
+            }
+        } else {
+            String::from_str(&env, "active")
+        };
+
+        CampaignState {
+            creator,
+            goal,
+            deadline,
+            total_raised,
+            token,
+            status,
+        }
     }
 
     pub fn withdraw(env: Env) {
