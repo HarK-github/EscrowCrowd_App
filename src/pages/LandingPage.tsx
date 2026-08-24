@@ -108,7 +108,7 @@ export function LandingPage() {
             Built by <span className="text-white font-semibold">Harshit Kandpal</span> &copy; {new Date().getFullYear()}
           </p>
           <div className="flex items-center gap-6">
-            <a href="https://github.com/harshit-kandpal" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white transition-colors">
+            <a href="https://github.com/HarK-github/EscrowCrowd_App" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white transition-colors">
               <FaGithub size={26} />
             </a>
             <a href="#" className="text-muted-foreground hover:text-white transition-colors">
