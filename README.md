@@ -7,7 +7,7 @@ EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Ste
 ## Live Deployment
 - **Frontend Vercel Deployment:** [https://escrow-crowd.vercel.app](https://escrow-crowd.vercel.app)
 - **Deployed Contract Address:** `CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS`
-- **Example Transaction (Testnet Explorer):** [View on Stellar Expert](https://testnet.stellar.expert/explorer/contract/CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS)
+- **Example Transaction (Testnet Explorer):** [06d97e72...](https://stellar.expert/explorer/testnet/tx/06d97e72416e12fe48cbfb0b3866cb4cd4a3bafb27a8d558446a699a59c9cb97)
 
 ## Features
 - **Smart Contract Escrow:** Absolute trust. Backers' XLM is locked securely by Soroban.
@@ -42,3 +42,20 @@ EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Ste
    - Install a Stellar-compatible wallet browser extension (e.g., [Freighter Wallet](https://www.freighter.app/)).
    - Switch the wallet to the **Stellar Testnet**.
    - Fund your wallet using the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#account-creator).
+
+## Screenshots
+
+### Wallet Connection Options
+![Wallet Selection](./screenshots/disconnected.png)
+
+### Connecting Wallet
+![Connecting Wallet](./screenshots/connecting.png)
+
+### Dashboard
+![Dashboard](./screenshots/dashboard.png)
+
+### Transaction Signature Request
+![Transaction Popup](./screenshots/transaction_popup1.png)
+
+### Transaction Successful
+![Transaction Complete](./screenshots/transaction%20complete.png)
