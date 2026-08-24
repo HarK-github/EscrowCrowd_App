@@ -96,6 +96,18 @@ function App() {
     }
   };
 
+  const fetchNetworkFee = async (): Promise<string> => {
+    try {
+      const feeStats = await server.feeStats();
+      // Add a 10% buffer to the base fee to ensure transaction success during high traffic
+      const baseFee = parseInt(feeStats.last_ledger_base_fee, 10);
+      return Math.ceil(baseFee * 1.1).toString();
+    } catch (e) {
+      console.error("Failed to fetch dynamic fee, falling back to 100 stroops", e);
+      return '100';
+    }
+  };
+
   const connectWallet = async () => {
     try {
       const connected = await isConnected();
