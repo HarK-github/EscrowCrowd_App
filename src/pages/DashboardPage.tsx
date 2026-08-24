@@ -28,6 +28,12 @@ export function DashboardPage() {
     e.preventDefault();
     if (!amount) return;
 
+    if (parseFloat(amount) <= 0) {
+      setTxStatus('error');
+      setTxMessage('Donation amount must be greater than 0.');
+      return;
+    }
+
     if (balance === "Not Funded" || parseFloat(balance || "0") < parseFloat(amount)) {
       setTxStatus('error');
       setTxMessage('Insufficient XLM balance for this transaction.');
@@ -290,7 +296,11 @@ export function DashboardPage() {
                     <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Donation Amount (XLM)</label>
                     <div className="flex bg-black/60 border border-white/10 rounded-lg overflow-hidden p-1">
                       <input
-                        type="number" step="1" placeholder="10" value={amount} onChange={(e) => setAmount(e.target.value)} required
+                        type="number" step="1" min="1" placeholder="10" value={amount} onChange={(e) => {
+                          if (Number(e.target.value) >= 0) {
+                            setAmount(e.target.value);
+                          }
+                        }} required
                         className="w-full bg-transparent px-3 py-2 text-white focus:outline-none font-mono text-sm"
                       />
                     </div>
