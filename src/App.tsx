@@ -2,13 +2,19 @@ import React, { useRef, useState, useEffect } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { ChevronDown, Wallet, LogOut, Send, ExternalLink } from 'lucide-react';
 import {
-  isConnected,
-  isAllowed,
-  setAllowed,
-  getAddress,
-  signTransaction
-} from '@stellar/freighter-api';
-import { Horizon, TransactionBuilder, Networks, Asset, Operation } from '@stellar/stellar-sdk';
+  StellarWalletsKit,
+  Networks,
+} from '@creit.tech/stellar-wallets-kit';
+import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
+import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
+import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
+import { Horizon, TransactionBuilder, Networks as StellarNetworks, Asset, Operation } from '@stellar/stellar-sdk';
+
+const kit = new StellarWalletsKit({
+  network: Networks.TESTNET,
+  selectedWalletId: 'freighter',
+  modules: [new FreighterModule(), new AlbedoModule(), new xBullModule()],
+});
 import '@fontsource/inter/400.css';
 import '@fontsource/inter/500.css';
 import '@fontsource/inter/600.css';
@@ -17,7 +23,7 @@ import '@fontsource/instrument-serif/400.css';
 import '@fontsource/instrument-serif/400-italic.css';
 
 const HORIZON_URL = 'https://horizon-testnet.stellar.org';
-const NETWORK_PASSPHRASE = Networks.TESTNET;
+const NETWORK_PASSPHRASE = StellarNetworks.TESTNET;
 const server = new Horizon.Server(HORIZON_URL);
 
 // Placeholder Assets
@@ -39,6 +45,7 @@ function App() {
   const [txStatus, setTxStatus] = useState('');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [appError, setAppError] = useState('');
 
   // Auto-scroll when connected
   useEffect(() => {
@@ -66,25 +73,10 @@ function App() {
   const testimonialText = "Stellar revolutionized how we handle decentralized payments using lightning-fast finality. We are now driving global transactions quicker than we ever imagined! Stellar revolutionized how we handle financial insights.";
   const words = testimonialText.split(" ");
 
-  // Freighter Logic
-  useEffect(() => { checkConnection(); }, []);
-
-  const checkConnection = async () => {
-    try {
-      const allowed = await isAllowed();
-      if (allowed) {
-        const { address, error } = await getAddress();
-        if (address && !error) {
-          setPubKey(address);
-          fetchBalance(address);
-        } else if (error) {
-          console.error("Freighter address error:", error);
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-  };
+  // Auto-connect if already allowed (optional, keeping minimal for kit)
+  useEffect(() => { 
+    // Usually kit handles its own session restoration
+  }, []);
 
   const fetchBalance = async (publicKey: string) => {
     try {
@@ -109,17 +101,29 @@ function App() {
   };
 
   const connectWallet = async () => {
+    setAppError('');
     try {
-      const connected = await isConnected();
-      if (!connected) {
-        alert("Freighter is not installed! Please install the Freighter browser extension.");
-        return;
-      }
-      await setAllowed();
-      await checkConnection();
-    } catch (e) {
+      await kit.openModal({
+        onWalletSelected: async (option) => {
+          try {
+            kit.setWallet(option.id);
+            const publicKey = await kit.getPublicKey();
+            setPubKey(publicKey);
+            fetchBalance(publicKey);
+          } catch (e: any) {
+            console.error(e);
+            const msg = e?.message?.toLowerCase() || '';
+            if (msg.includes('not installed') || msg.includes('not found')) {
+              setAppError(`Wallet not found. Please install ${option.name} extension.`);
+            } else {
+              setAppError("Connection rejected or failed.");
+            }
+          }
+        },
+      });
+    } catch (e: any) {
       console.error(e);
-      alert("Failed to connect to Freighter");
+      setAppError("Failed to open wallet kit.");
     }
   };
 
@@ -131,6 +135,14 @@ function App() {
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!toAddress || !amount) return;
+    
+    // Check sufficient balance
+    if (balance === "Not Funded" || parseFloat(balance || "0") < parseFloat(amount)) {
+      setTxStatus('error');
+      setTxMessage('Insufficient XLM balance for this transaction.');
+      return;
+    }
+
     setTxStatus('loading');
     setTxMessage('Preparing transaction...');
     setTxHash('');
@@ -170,14 +182,14 @@ function App() {
         .setTimeout(30)
         .build();
 
-      setTxMessage('Please sign in Freighter...');
+      setTxMessage('Please sign in your wallet...');
       const xdr = transaction.toXDR();
-      const signResponse = await signTransaction(xdr, {
+      const signResponse = await kit.signTransaction(xdr, {
         networkPassphrase: NETWORK_PASSPHRASE,
       });
 
-      if (signResponse.error) {
-        throw new Error(signResponse.error);
+      if (!signResponse || !signResponse.signedTxXdr) {
+        throw new Error("Failed to sign transaction or transaction rejected.");
       }
 
       setTxMessage('Submitting to network...');
@@ -266,17 +278,24 @@ function App() {
           </motion.p>
 
           {!pubKey && (
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ scale: 1.03 }}
-              whileTap={{ scale: 0.98 }}
               transition={{ duration: 0.6, delay: 0.3 }}
-              onClick={connectWallet}
-              className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium z-50 flex items-center gap-2"
+              className="flex flex-col items-center gap-4 z-50"
             >
-              <Wallet size={18} /> Connect Freighter
-            </motion.button>
+              <button
+                onClick={connectWallet}
+                className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-105 transition-transform"
+              >
+                <Wallet size={18} /> Connect Wallet
+              </button>
+              {appError && (
+                <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm max-w-md text-center">
+                  {appError}
+                </div>
+              )}
+            </motion.div>
           )}
         </motion.div>
 
