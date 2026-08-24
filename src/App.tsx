@@ -10,7 +10,7 @@ import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
 import { Horizon, TransactionBuilder, Networks as StellarNetworks, Asset, Operation } from '@stellar/stellar-sdk';
 
-const kit = new StellarWalletsKit({
+StellarWalletsKit.init({
   network: Networks.TESTNET,
   selectedWalletId: 'freighter',
   modules: [new FreighterModule(), new AlbedoModule(), new xBullModule()],
@@ -103,27 +103,19 @@ function App() {
   const connectWallet = async () => {
     setAppError('');
     try {
-      await kit.openModal({
-        onWalletSelected: async (option) => {
-          try {
-            kit.setWallet(option.id);
-            const publicKey = await kit.getPublicKey();
-            setPubKey(publicKey);
-            fetchBalance(publicKey);
-          } catch (e: any) {
-            console.error(e);
-            const msg = e?.message?.toLowerCase() || '';
-            if (msg.includes('not installed') || msg.includes('not found')) {
-              setAppError(`Wallet not found. Please install ${option.name} extension.`);
-            } else {
-              setAppError("Connection rejected or failed.");
-            }
-          }
-        },
-      });
+      const { address } = await StellarWalletsKit.authModal();
+      if (address) {
+        setPubKey(address);
+        fetchBalance(address);
+      }
     } catch (e: any) {
       console.error(e);
-      setAppError("Failed to open wallet kit.");
+      const msg = e?.message?.toLowerCase() || '';
+      if (msg.includes('not installed') || msg.includes('not found')) {
+        setAppError("Wallet not found. Please install the required extension.");
+      } else {
+        setAppError("Connection rejected or failed.");
+      }
     }
   };
 
@@ -184,7 +176,7 @@ function App() {
 
       setTxMessage('Please sign in your wallet...');
       const xdr = transaction.toXDR();
-      const signResponse = await kit.signTransaction(xdr, {
+      const signResponse = await StellarWalletsKit.signTransaction(xdr, {
         networkPassphrase: NETWORK_PASSPHRASE,
       });
 
