@@ -10,7 +10,7 @@ import { TransactionBuilder, Contract, nativeToScVal, rpc } from '@stellar/stell
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, fetchBalance, fetchCampaignState } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, fetchBalance, fetchCampaignState } = useStellar();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
@@ -117,43 +117,74 @@ export function DashboardPage() {
         className="relative z-40 max-w-6xl mx-auto w-full px-6 pb-24 mt-12 flex-1"
       >
         <div className="grid md:grid-cols-2 gap-8">
-          <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col justify-between">
-            <div>
-              <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                <Wallet /> Crowdfund Status
-              </h2>
-              <div className="space-y-6">
-                <div>
-                  <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</p>
-                  <div className="font-mono text-xs break-all opacity-80">
-                    {pubKey}
+          <div className="flex flex-col gap-8">
+            <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col justify-between">
+              <div>
+                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+                  <Wallet /> Crowdfund Status
+                </h2>
+                <div className="space-y-6">
+                  <div>
+                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</p>
+                    <div className="font-mono text-xs break-all opacity-80">
+                      {pubKey}
+                    </div>
                   </div>
-                </div>
-                {campaign && (
-                  <>
-                    <div>
-                      <div className="flex justify-between items-end mb-2">
-                        <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</p>
-                        <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
-                      </div>
-                      <div className="w-full bg-white/10 rounded-full h-3">
-                        <div
-                          className="bg-white h-3 rounded-full"
-                          style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
-                        ></div>
-                      </div>
-                    </div>
-                    <div className="flex justify-between items-center bg-white/5 p-4 rounded-lg">
+                  {campaign && (
+                    <>
                       <div>
-                        <p className="text-xs text-muted-foreground uppercase">Status</p>
-                        <p className="font-semibold capitalize">{campaign.status}</p>
+                        <div className="flex justify-between items-end mb-2">
+                          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</p>
+                          <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
+                        </div>
+                        <div className="w-full bg-white/10 rounded-full h-3">
+                          <div
+                            className="bg-white h-3 rounded-full transition-all duration-500 ease-out"
+                            style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
+                          ></div>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-xs text-muted-foreground uppercase">Balance</p>
-                        <p className="font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</p>
+                      <div className="flex justify-between items-center bg-white/5 p-4 rounded-lg">
+                        <div>
+                          <p className="text-xs text-muted-foreground uppercase">Status</p>
+                          <p className="font-semibold capitalize">{campaign.status}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-xs text-muted-foreground uppercase">Balance</p>
+                          <p className="font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</p>
+                        </div>
                       </div>
-                    </div>
-                  </>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Live Activity Feed */}
+            <div className="liquid-glass rounded-2xl p-6 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col">
+              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                Live Activity
+              </h2>
+              <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
+                {recentDonations.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Waiting for activity...</p>
+                ) : (
+                  recentDonations.map((event) => {
+                    const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
+                    return (
+                      <div key={event.id} className="text-sm bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono opacity-70">{event.donor.slice(0, 4)}...{event.donor.slice(-4)}</span>
+                          <span>donated</span>
+                          <strong className="text-white">{event.amount} XLM</strong>
+                        </div>
+                        <span className="text-xs text-muted-foreground opacity-70">
+                          {timeAgo < 1 ? 'Just now' : `${timeAgo} min ago`}
+                        </span>
+                      </div>
+                    );
+                  })
                 )}
               </div>
             </div>

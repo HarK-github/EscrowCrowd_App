@@ -26,11 +26,19 @@ export interface CampaignState {
   totalRaised: number;
 }
 
+export interface DonationEvent {
+  id: string;
+  donor: string;
+  amount: number;
+  timestamp: string;
+}
+
 interface StellarContextType {
   pubKey: string;
   balance: string | null;
   appError: string;
   campaign: CampaignState | null;
+  recentDonations: DonationEvent[];
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   fetchBalance: (publicKey: string) => Promise<void>;
@@ -44,6 +52,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   const [balance, setBalance] = useState<string | null>(null);
   const [appError, setAppError] = useState('');
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
+  const [recentDonations, setRecentDonations] = useState<DonationEvent[]>([]);
 
   const fetchCampaignState = async () => {
     try {
@@ -73,8 +82,94 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const fetchRecentEvents = async (startLedger: number) => {
+    try {
+      const eventsRes = await rpcServer.getEvents({
+        startLedger,
+        filters: [
+          {
+            type: 'contract',
+            contractIds: [CONTRACT_ID],
+          },
+        ],
+        limit: 10,
+      });
+
+      if (eventsRes && eventsRes.events) {
+        const parsedEvents = eventsRes.events
+          .filter((e) => e.type === 'contract' && e.inSuccessfulContractCall)
+          .map((e) => {
+            try {
+              const topic0 = scValToNative(e.topic[0]);
+              if (topic0 === 'donate') {
+                const donor = scValToNative(e.topic[1]);
+                const amountStroops = scValToNative(e.value);
+                const amount = Number(amountStroops) / 10000000;
+                return {
+                  id: e.id,
+                  donor: donor.toString(),
+                  amount,
+                  timestamp: e.ledgerClosedAt,
+                };
+              }
+            } catch (err) {
+              console.error("Error parsing event", err);
+            }
+            return null;
+          })
+          .filter(Boolean) as DonationEvent[];
+
+        if (parsedEvents.length > 0) {
+          setRecentDonations((prev) => {
+            const combined = [...parsedEvents, ...prev];
+            // Deduplicate by id
+            const unique = combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+            return unique.slice(0, 10); // Keep last 10
+          });
+        }
+      }
+    } catch (e) {
+      console.error("Failed to fetch events:", e);
+    }
+  };
+
   useEffect(() => {
     fetchCampaignState();
+    
+    // Polling setup
+    let isMounted = true;
+    let lastCheckedLedger = 0;
+
+    const poll = async () => {
+      if (!isMounted) return;
+      try {
+        await fetchCampaignState();
+        
+        const latestLedger = await rpcServer.getLatestLedger();
+        if (latestLedger.sequence) {
+          const currentSeq = latestLedger.sequence;
+          if (lastCheckedLedger === 0) {
+            // First time, check last 100 ledgers to populate recent activity
+            await fetchRecentEvents(currentSeq - 100);
+          } else if (currentSeq > lastCheckedLedger) {
+            await fetchRecentEvents(lastCheckedLedger);
+          }
+          lastCheckedLedger = currentSeq;
+        }
+      } catch (e) {
+        console.error("Polling error:", e);
+      }
+      
+      if (isMounted) {
+        setTimeout(poll, 5000); // Poll every 5 seconds
+      }
+    };
+
+    poll();
+
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   const fetchBalance = async (publicKey: string) => {
@@ -113,7 +208,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
   return (
     <StellarContext.Provider value={{
-      pubKey, balance, appError, campaign, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState
+      pubKey, balance, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState
     }}>
       {children}
     </StellarContext.Provider>
