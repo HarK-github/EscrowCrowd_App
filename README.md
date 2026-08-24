@@ -1,63 +1,44 @@
-# 🚀 Stellar Web3 dApp (Level 1 - White Belt)
+# EscrowCrowd: Decentralized Crowdfunding on Stellar
 
-A premium, highly interactive decentralized application (dApp) built on the **Stellar Testnet**. This project serves as a showcase for seamless wallet integration and robust transaction capabilities on the Stellar network, wrapped in a beautiful, modern "liquid-glass" user interface.
+EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Stellar network using Soroban smart contracts. It guarantees that funds are only released to project creators if their funding goals are met. If a project fails to reach its goal by the deadline, backers can safely reclaim their XLM. 
 
-## ✨ Features
+![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png)
 
-- **Freighter Wallet Integration**: Connect and disconnect securely using the latest `@stellar/freighter-api`. Includes smart detection to prompt users if the extension is missing.
-- **Testnet Exclusive**: Fully configured to interact exclusively with the Stellar Testnet, ensuring a safe sandbox environment.
-- **Live Balance Fetching**: Instantly retrieves and elegantly displays the connected account's native XLM balance.
-- **Smart Transaction Flow**: Sends native XLM transactions to any destination address. **Auto-detects** if the destination address is new/unfunded and intelligently switches from a `Payment` operation to a `CreateAccount` operation!
-- **Real-Time Feedback**: Provides immediate transaction status (`loading`, `success`, `error`) and directly links the successful transaction hash to the Stellar Expert block explorer.
-- **Premium Aesthetics**: Built with a sleek dark theme, glassmorphism (`liquid-glass`), and buttery-smooth staggered scroll animations via Framer Motion.
+## Live Deployment
+- **Frontend Vercel Deployment:** [https://escrow-crowd.vercel.app](https://escrow-crowd.vercel.app)
+- **Deployed Contract Address:** `CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS`
+- **Example Transaction (Testnet Explorer):** [View on Stellar Expert](https://testnet.stellar.expert/explorer/contract/CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS)
 
-## 🛠 Tech Stack
+## Features
+- **Smart Contract Escrow:** Absolute trust. Backers' XLM is locked securely by Soroban.
+- **Real-Time Blockchain Sync:** Live activity feeds powered by Soroban RPC polling.
+- **Automated Refund Protection:** Guaranteed refunds for unmet funding goals.
+- **Stellar Speed:** Near-instant settlement on the Stellar Testnet.
+- **Modern UI:** Glassmorphism, dynamic animations, and fully responsive bento grid layouts.
 
-- **Framework**: React 18 + Vite + TypeScript
-- **Styling**: Tailwind CSS (v4) + Custom CSS Variables
-- **Animations**: Framer Motion
-- **Web3 SDKs**: `@stellar/freighter-api`, `@stellar/stellar-sdk`
-- **Typography**: Inter & Instrument Serif
+## Local Setup Instructions
 
----
-
-## 📸 Screenshots
-
-| Wallet Connected State | Balance Displayed |
-| :---: | :---: |
-| ![Wallet Connected](./screenshots/connect_wallet.png) | ![Balance Displayed](./screenshots/image%20copy%203.png) |
-
-| Successful Testnet Transaction | Transaction Result |
-| :---: | :---: |
-| ![Successful Transaction](./screenshots/successfull_transaction.png) | ![Transaction Result](./screenshots/transaction_recieved_waller.png) |
-
----
-
-## ⚙️ Setup Instructions
-
-To run this project locally, follow these steps:
-
-1. **Clone the repository**:
+1. **Clone the repository**
    ```bash
-   git clone <your-repo-url>
-   cd EscrowCrowd_App
+   git clone https://github.com/harshit-kandpal/EscrowCrowd.git
+   cd EscrowCrowd
    ```
 
-2. **Install dependencies**:
-   Ensure you have Node.js installed, then run:
+2. **Install dependencies**
    ```bash
    npm install
    ```
 
-3. **Start the development server**:
+3. **Configure Environment**
+   There are no local `.env` variables required to run the application natively! The `CONTRACT_ID`, RPC URL, and Network settings are already seamlessly configured within `src/context/StellarContext.tsx`.
+
+4. **Run the local development server**
    ```bash
    npm run dev
    ```
+   Open `http://localhost:5173` in your browser.
 
-4. **Access the application**:
-   Open your browser and navigate to the local URL provided in the terminal (usually `http://localhost:5173`).
-
-5. **Prerequisites for Testing**:
-   - Install the [Freighter extension](https://www.freighter.app/) in your browser.
-   - Switch your Freighter network to **Testnet**.
-   - Fund your account via the [Stellar Laboratory](https://laboratory.stellar.org/#account-creator?network=test).
+5. **Prerequisites for Testing**
+   - Install a Stellar-compatible wallet browser extension (e.g., [Freighter Wallet](https://www.freighter.app/)).
+   - Switch the wallet to the **Stellar Testnet**.
+   - Fund your wallet using the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#account-creator).
