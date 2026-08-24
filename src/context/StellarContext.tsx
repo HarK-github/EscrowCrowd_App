@@ -48,7 +48,7 @@ interface StellarContextType {
 const StellarContext = createContext<StellarContextType | undefined>(undefined);
 
 export function StellarProvider({ children }: { children: ReactNode }) {
-  const [pubKey, setPubKey] = useState('');
+  const [pubKey, setPubKey] = useState(() => localStorage.getItem('stellarPubKey') || '');
   const [balance, setBalance] = useState<string | null>(null);
   const [appError, setAppError] = useState('');
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
@@ -188,6 +188,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       const { address } = await StellarWalletsKit.authModal();
       if (address) {
         setPubKey(address);
+        localStorage.setItem('stellarPubKey', address);
         fetchBalance(address);
       }
     } catch (e: any) {
@@ -204,7 +205,15 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   const disconnectWallet = () => {
     setPubKey('');
     setBalance(null);
+    localStorage.removeItem('stellarPubKey');
   };
+
+  // Fetch balance on initial load if pubKey exists
+  useEffect(() => {
+    if (pubKey) {
+      fetchBalance(pubKey);
+    }
+  }, []);
 
   return (
     <StellarContext.Provider value={{

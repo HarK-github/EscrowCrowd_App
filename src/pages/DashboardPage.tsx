@@ -10,7 +10,7 @@ import { TransactionBuilder, Contract, nativeToScVal, rpc } from '@stellar/stell
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, recentDonations, fetchBalance, fetchCampaignState } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState } = useStellar();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
@@ -107,190 +107,243 @@ export function DashboardPage() {
   if (!pubKey) return null;
 
   return (
-    <div className="font-sans antialiased text-foreground bg-background min-h-screen flex flex-col">
-      <Navbar />
+    <div className="font-sans antialiased text-foreground bg-background h-screen flex overflow-hidden relative">
 
-      <motion.div
-        initial={{ opacity: 0, y: 40 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.8, delay: 0.2 }}
-        className="relative z-40 max-w-6xl mx-auto w-full px-6 pb-24 mt-12 flex-1"
-      >
-        <div className="grid md:grid-cols-2 gap-8">
-          <div className="flex flex-col gap-8">
-            <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col justify-between">
-              <div>
-                <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-                  <Wallet /> Crowdfund Status
-                </h2>
-                <div className="space-y-6">
-                  <div>
-                    <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</p>
-                    <div className="font-mono text-xs break-all opacity-80">
-                      {pubKey}
-                    </div>
-                  </div>
-                  {campaign && (
-                    <>
-                      <div>
-                        <div className="flex justify-between items-end mb-2">
-                          <p className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</p>
-                          <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
-                        </div>
-                        <div className="w-full bg-white/10 rounded-full h-3">
-                          <div
-                            className="bg-white h-3 rounded-full transition-all duration-500 ease-out"
-                            style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
-                          ></div>
-                        </div>
-                      </div>
-                      <div className="flex justify-between items-center bg-white/5 p-4 rounded-lg">
-                        <div>
-                          <p className="text-xs text-muted-foreground uppercase">Status</p>
-                          <p className="font-semibold capitalize">{campaign.status}</p>
-                        </div>
-                        <div className="text-right">
-                          <p className="text-xs text-muted-foreground uppercase">Balance</p>
-                          <p className="font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</p>
-                        </div>
-                      </div>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Live Activity Feed */}
-            <div className="liquid-glass rounded-2xl p-6 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col">
-              <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                Live Activity
-              </h2>
-              <div className="space-y-3 max-h-48 overflow-y-auto pr-2 custom-scrollbar">
-                {recentDonations.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">Waiting for activity...</p>
-                ) : (
-                  recentDonations.map((event) => {
-                    const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
-                    return (
-                      <div key={event.id} className="text-sm bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono opacity-70">{event.donor.slice(0, 4)}...{event.donor.slice(-4)}</span>
-                          <span>donated</span>
-                          <strong className="text-white">{event.amount} XLM</strong>
-                        </div>
-                        <span className="text-xs text-muted-foreground opacity-70">
-                          {timeAgo < 1 ? 'Just now' : `${timeAgo} min ago`}
-                        </span>
-                      </div>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-          </div>
-
-          <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl">
-            <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-              <Send /> Support Campaign
-            </h2>
-            <form onSubmit={handleSendTransaction} className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-muted-foreground mb-1">Donation Amount (XLM)</label>
-                <input
-                  type="number" step="1" placeholder="10" value={amount} onChange={(e) => setAmount(e.target.value)} required
-                  className="w-full bg-black/40 border border-white/10 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:ring-1 focus:ring-white/50 font-mono text-sm"
-                />
-              </div>
-              <button
-                type="submit"
-                disabled={txStatus === 'loading' || !amount || balance === "Not Funded"}
-                className="w-full mt-2 bg-white text-black py-3 rounded-lg font-semibold hover:bg-white/90 disabled:opacity-50 transition-all flex justify-center items-center gap-2"
-              >
-                {txStatus === 'loading' ? (
-                  <><span className="animate-spin h-4 w-4 border-2 border-black border-t-transparent rounded-full"></span> Processing...</>
-                ) : 'Donate XLM'}
-              </button>
-            </form>
-
-            {txStatus && (
-              <div className={`mt-4 p-4 rounded-lg border text-sm flex flex-col gap-2 ${txStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'}`}>
-                <div className="flex items-center gap-2">
-                  {txStatus === 'loading' ? (
-                    <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                  ) : txStatus === 'error' ? (
-                    <span className="text-lg">❌</span>
-                  ) : (
-                    <span className="text-lg">✅</span>
-                  )}
-                  <strong className="block">{txMessage}</strong>
-                </div>
-                {txHash && (
-                  <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 opacity-70 hover:opacity-100 underline">
-                    View on Stellar Expert <ExternalLink size={12} />
-                  </a>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Contract Details Panel */}
-        <div className="mt-8 liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl w-full">
-          <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
-            <span className="opacity-80">📄</span> Contract Details
-          </h2>
-          {campaign ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Contract ID (Escrow)</p>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm opacity-90 break-all">
-                    {CONTRACT_ID.slice(0, 8)}...{CONTRACT_ID.slice(-8)}
-                  </span>
-                  <a href={`https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`} target="_blank" rel="noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
-                    <ExternalLink size={14} />
-                  </a>
-                </div>
-              </div>
-              
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Creator Address</p>
-                <div className="flex items-center gap-2">
-                  <span className="font-mono text-sm opacity-90 break-all">
-                    {campaign.creator.slice(0, 8)}...{campaign.creator.slice(-8)}
-                  </span>
-                  <a href={`https://stellar.expert/explorer/testnet/account/${campaign.creator}`} target="_blank" rel="noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
-                    <ExternalLink size={14} />
-                  </a>
-                </div>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Deadline</p>
-                <span className="text-sm opacity-90">
-                  {new Date(campaign.deadline * 1000).toLocaleDateString()} {new Date(campaign.deadline * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              </div>
-
-              <div>
-                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Target Goal</p>
-                <span className="text-sm opacity-90 font-semibold">{campaign.goal} XLM</span>
-              </div>
-            </div>
-          ) : (
-            <div className="text-sm text-muted-foreground">Loading contract data...</div>
-          )}
-        </div>
-
-        <div className="fixed top-0 right-0 w-full md:w-1/2 h-screen pointer-events-none z-0 ">
+      {/* Background Gradient & Video */}
+      <div className="fixed inset-0 z-0 pointer-events-none">
+        <div
+          className="absolute inset-0 z-0"
+          style={{
+            background: "radial-gradient(125% 125% at 50% 10%, #000 40%, rgba(0, 88, 67, 0.2) 100%)",
+          }}
+        />
+        <div className="absolute right-0 w-full md:w-1/2 h-screen">
           <video
             autoPlay muted playsInline
-            className="w-full h-full object-cover opacity-10 blur-md  mix-blend-screen"
+            className="w-full h-full object-cover opacity-15 mix-blend-screen"
             src={noLoopAnim}
           />
         </div>
-      </motion.div>
+      </div>
+
+      {/* Floating Glassy Sidebar Layout */}
+      <div className="p-6 pr-0 z-40 h-full flex-shrink-0">
+        <aside className="w-64 h-full liquid-glass rounded-2xl border border-white/10 flex flex-col backdrop-blur-xl shadow-2xl overflow-hidden">
+          <div className="text-xl font-bold p-6 border-b border-white/10 flex items-center gap-2 tracking-tight">
+            EscrowCrowd
+          </div>
+          <nav className="flex flex-col gap-2 p-4">
+            <a href="#" className="px-4 py-2 rounded-lg bg-white/10 text-white font-medium">Overview Dashboard</a>
+            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">Active Campaigns</a>
+            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">My Escrows</a>
+            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">Transaction History</a>
+          </nav>
+        </aside>
+      </div>
+
+      {/* Main Content Layout */}
+      <div className="flex-1 flex flex-col z-40 overflow-y-auto">
+
+        {/* Top Header */}
+        <header className="h-24 flex items-center justify-end px-8 sticky top-0 z-50 pt-6">
+          <div className="flex items-center gap-4">
+            <span className="font-mono text-sm px-4 py-2 bg-black/60 border border-white/10 rounded-full backdrop-blur-md">
+              {pubKey.slice(0, 4)}...{pubKey.slice(-4)}
+            </span>
+            <button
+              onClick={() => {
+                disconnectWallet();
+                navigate('/');
+              }}
+              className="text-sm font-medium bg-white/10 text-white backdrop-blur-md px-5 py-2 rounded-full hover:bg-white/20 hover:scale-[1.02] transition-all"
+            >
+              Disconnect
+            </button>
+          </div>
+        </header>
+
+        {/* Dashboard Content Grid */}
+        <main className="p-8 pt-4 flex flex-col gap-8 max-w-7xl mx-auto w-full">
+
+          {/* Top Metrics Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Escrow Balance</div>
+              <div className="text-2xl font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</div>
+            </div>
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Target Goal</div>
+              <div className="text-2xl font-semibold font-serif italic">{campaign ? `${campaign.goal} XLM` : '...'}</div>
+            </div>
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Current Status</div>
+              <div className="text-lg font-semibold flex items-center gap-2 capitalize">
+                {campaign ? (
+                  <>
+                    <span className={`w-2 h-2 rounded-full ${campaign.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></span>
+                    {campaign.status}
+                  </>
+                ) : '...'}
+              </div>
+            </div>
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Deadline</div>
+              <div className="text-lg font-semibold leading-tight">
+                {campaign ? (
+                  <>
+                    {new Date(campaign.deadline * 1000).toLocaleDateString()}<br />
+                    <span className="text-sm text-muted-foreground font-normal">
+                      {new Date(campaign.deadline * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </>
+                ) : '...'}
+              </div>
+            </div>
+          </div>
+
+          {/* Main Layout: 2/3 Left, 1/3 Right */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+
+            {/* Left Column */}
+            <div className="lg:col-span-2 flex flex-col gap-8">
+
+              {/* Crowdfund Status */}
+              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl flex flex-col">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                  <Wallet size={20} /> Crowdfund Status
+                </h2>
+
+                <div className="mb-6">
+                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</div>
+                  <div className="bg-black/40 p-3 rounded-lg border border-white/5 font-mono text-sm text-muted-foreground break-all">
+                    {pubKey}
+                  </div>
+                </div>
+
+                {campaign && (
+                  <div>
+                    <div className="flex justify-between items-end mb-2">
+                      <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</span>
+                      <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
+                    </div>
+                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
+                      <div
+                        className="bg-white h-2 rounded-full transition-all duration-500 ease-out"
+                        style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
+                      ></div>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Live Activity Console */}
+              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl flex-1 flex flex-col">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+                  Live Activity
+                </h2>
+                <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 font-mono text-sm">
+                  {recentDonations.length === 0 ? (
+                    <p className="text-muted-foreground">&gt; Waiting for activity...</p>
+                  ) : (
+                    recentDonations.map((event) => {
+                      const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
+                      return (
+                        <div key={event.id} className="bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-muted-foreground">
+                            <span>&gt;</span>
+                            <span className="text-white opacity-80">{event.donor.slice(0, 6)}...{event.donor.slice(-4)}</span>
+                            <span>donated</span>
+                            <strong className="text-white">{event.amount} XLM</strong>
+                          </div>
+                          <span className="text-xs text-muted-foreground opacity-60">
+                            {timeAgo < 1 ? 'Just now' : `${timeAgo} min ago`}
+                          </span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+
+            </div>
+
+            {/* Right Column */}
+            <div className="flex flex-col gap-8">
+
+              {/* Support Campaign Action Card */}
+              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/20 backdrop-blur-xl">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                  <Send size={20} /> Support Campaign
+                </h2>
+                <form onSubmit={handleSendTransaction} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Donation Amount (XLM)</label>
+                    <div className="flex bg-black/60 border border-white/10 rounded-lg overflow-hidden p-1">
+                      <input
+                        type="number" step="1" placeholder="10" value={amount} onChange={(e) => setAmount(e.target.value)} required
+                        className="w-full bg-transparent px-3 py-2 text-white focus:outline-none font-mono text-sm"
+                      />
+                    </div>
+                  </div>
+                  <button
+                    type="submit"
+                    disabled={txStatus === 'loading' || !amount || balance === "Not Funded"}
+                    className="w-full bg-foreground text-background py-3.5 rounded-full text-base font-medium hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50 transition-transform flex justify-center items-center gap-2"
+                  >
+                    {txStatus === 'loading' ? (
+                      <><span className="animate-spin h-4 w-4 border-2 border-black border-t-transparent rounded-full"></span> Processing...</>
+                    ) : 'Donate XLM'}
+                  </button>
+                </form>
+
+                {txStatus && (
+                  <div className={`mt-4 p-4 rounded-lg border text-sm flex flex-col gap-2 ${txStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'}`}>
+                    <div className="flex items-center gap-2">
+                      {txStatus === 'loading' ? (
+                        <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                      ) : txStatus === 'error' ? (
+                        <span className="text-lg">❌</span>
+                      ) : (
+                        <span className="text-lg">✅</span>
+                      )}
+                      <strong className="block">{txMessage}</strong>
+                    </div>
+                    {txHash && (
+                      <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 opacity-70 hover:opacity-100 underline">
+                        View on Stellar Expert <ExternalLink size={12} />
+                      </a>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Technical Details */}
+              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl">
+                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
+                  <span className="opacity-80">🔗</span> Contract Details
+                </h2>
+
+                <div className="space-y-4">
+                  <div className="flex justify-between items-center py-2 border-b border-white/5">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contract ID</span>
+                    <a href={`https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`} target="_blank" rel="noreferrer" className="font-mono text-sm opacity-90 hover:text-white transition-colors flex items-center gap-1">
+                      {CONTRACT_ID.slice(0, 8)}...{CONTRACT_ID.slice(-4)} <ExternalLink size={12} />
+                    </a>
+                  </div>
+                  <div className="flex justify-between items-center py-2">
+                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Creator</span>
+                    <a href={`https://stellar.expert/explorer/testnet/account/${campaign?.creator || ''}`} target="_blank" rel="noreferrer" className="font-mono text-sm opacity-90 hover:text-white transition-colors flex items-center gap-1">
+                      {campaign?.creator ? `${campaign.creator.slice(0, 8)}...${campaign.creator.slice(-4)}` : '...'} <ExternalLink size={12} />
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </main>
+      </div>
     </div>
   );
 }
