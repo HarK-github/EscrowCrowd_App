@@ -59,8 +59,40 @@ impl CrowdfundContract {
         env.storage().instance().extend_ttl(100_000, 100_000);
     }
 
-    pub fn donate(env: Env) {
-        // Placeholder
+    /// Donate to the campaign
+    pub fn donate(env: Env, donor: Address, amount: i128) {
+        donor.require_auth();
+
+        let deadline: u64 = env.storage().instance().get(&DataKey::Deadline).expect("not initialized");
+        if env.ledger().timestamp() >= deadline {
+            panic!("Campaign ended");
+        }
+        if amount <= 0 {
+            panic!("Amount must be > 0");
+        }
+
+        let token_id: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token_client = token::Client::new(&env, &token_id);
+        
+        // Transfer from donor to the contract
+        token_client.transfer(&donor, &env.current_contract_address(), &amount);
+
+        let mut total_raised: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
+        total_raised += amount;
+        env.storage().instance().set(&DataKey::TotalRaised, &total_raised);
+
+        let donation_key = DataKey::Donation(donor.clone());
+        let mut current_donation: i128 = env.storage().persistent().get(&donation_key).unwrap_or(0);
+        current_donation += amount;
+        env.storage().persistent().set(&donation_key, &current_donation);
+
+        // Emit an event
+        env.events().publish(
+            (soroban_sdk::symbol_short!("donate"), donor),
+            amount
+        );
+        
+        env.storage().instance().extend_ttl(100_000, 100_000);
     }
 
     pub fn get_campaign_state(env: Env) {
