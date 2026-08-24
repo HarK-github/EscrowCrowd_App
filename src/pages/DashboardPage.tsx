@@ -235,6 +235,54 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {/* Contract Details Panel */}
+        <div className="mt-8 liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl w-full">
+          <h2 className="text-xl font-semibold mb-6 flex items-center gap-2">
+            <span className="opacity-80">📄</span> Contract Details
+          </h2>
+          {campaign ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Contract ID (Escrow)</p>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm opacity-90 break-all">
+                    {CONTRACT_ID.slice(0, 8)}...{CONTRACT_ID.slice(-8)}
+                  </span>
+                  <a href={`https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`} target="_blank" rel="noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              </div>
+              
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Creator Address</p>
+                <div className="flex items-center gap-2">
+                  <span className="font-mono text-sm opacity-90 break-all">
+                    {campaign.creator.slice(0, 8)}...{campaign.creator.slice(-8)}
+                  </span>
+                  <a href={`https://stellar.expert/explorer/testnet/account/${campaign.creator}`} target="_blank" rel="noreferrer" className="opacity-70 hover:opacity-100 transition-opacity">
+                    <ExternalLink size={14} />
+                  </a>
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Deadline</p>
+                <span className="text-sm opacity-90">
+                  {new Date(campaign.deadline * 1000).toLocaleDateString()} {new Date(campaign.deadline * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-1">Target Goal</p>
+                <span className="text-sm opacity-90 font-semibold">{campaign.goal} XLM</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-sm text-muted-foreground">Loading contract data...</div>
+          )}
+        </div>
+
         <div className="fixed top-0 right-0 w-full md:w-1/2 h-screen pointer-events-none z-0 ">
           <video
             autoPlay muted playsInline
