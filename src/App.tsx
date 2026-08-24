@@ -73,7 +73,7 @@ function App() {
     offset: ["start end", "end center"]
   });
 
-  const testimonialText = "Stellar revolutionized how we handle decentralized payments using lightning-fast finality. We are now driving global transactions quicker than we ever imagined! Stellar revolutionized how we handle financial insights.";
+  const testimonialText = "EscrowCrowd brings absolute trust to crowdfunding. If a project fails to meet its goal by the deadline, your funds are completely safe. This smart contract driven escrow completely changes the game for backers.";
   const words = testimonialText.split(" ");
 
   // Fetch Campaign State
@@ -246,20 +246,25 @@ function App() {
         <nav className="px-8 md:px-28 py-4 flex items-center justify-between z-50">
           <div className="flex items-center gap-12 md:gap-20">
             <div className="flex items-center gap-3">
-              <span className="text-xl font-bold tracking-tight">Stellar Web3</span>
+              <span className="text-xl font-bold tracking-tight">EscrowCrowd</span>
             </div>
 
             <div className="hidden md:flex items-center gap-1">
-              <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors">Home</a>
-              <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors flex items-center gap-1">
-                Services <ChevronDown className="w-4 h-4" />
-              </a>
-              <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors">Reviews</a>
-              <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors">Contact us</a>
+              {!pubKey && (
+                <>
+                  <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors">How it works</a>
+                  <a href="#" className="px-3 py-2 text-sm font-medium hover:text-muted-foreground transition-colors">Campaigns</a>
+                </>
+              )}
             </div>
           </div>
 
-          <div>
+          <div className="flex items-center gap-4">
+            {pubKey && (
+              <span className="text-sm font-medium hidden md:block">
+                Welcome, {pubKey.slice(0, 4)}...{pubKey.slice(-4)}
+              </span>
+            )}
             {pubKey ? (
               <button onClick={disconnectWallet} className="bg-foreground text-background px-4 py-2 rounded-lg text-sm font-semibold hover:opacity-90 transition-opacity flex items-center gap-2">
                 <LogOut size={16} /> Disconnect
@@ -272,11 +277,12 @@ function App() {
           </div>
         </nav>
 
-        {/* Hero Content */}
-        <motion.div
-          style={{ y: heroTextY, opacity: heroTextOpacity }}
-          className="relative z-40 mt-16 md:mt-20 px-4 flex flex-col items-center text-center"
-        >
+        {/* Landing Page Content */}
+        {!pubKey && (
+          <motion.div
+            style={{ y: heroTextY, opacity: heroTextOpacity }}
+            className="relative z-40 mt-16 md:mt-20 px-4 flex flex-col items-center text-center"
+          >
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -284,7 +290,7 @@ function App() {
             className="liquid-glass px-3 py-2 rounded-lg mb-6 flex items-center gap-2"
           >
             <span className="bg-white text-black rounded-md text-sm font-medium px-2 py-0.5">Live</span>
-            <span className="text-sm font-medium text-muted-foreground pr-1">Say Hello to Stellar Testnet</span>
+            <span className="text-sm font-medium text-muted-foreground pr-1">Live on Stellar Testnet</span>
           </motion.div>
 
           <motion.h1
@@ -293,8 +299,8 @@ function App() {
             transition={{ duration: 0.6, delay: 0.1 }}
             className="text-5xl md:text-7xl tracking-[-2px] font-medium leading-tight md:leading-[1.15] mb-3 max-w-4xl"
           >
-            Your Assets. <br />
-            One Fast <span className="font-serif italic font-normal">Network.</span>
+            Decentralized <br />
+            Crowdfunding <span className="font-serif italic font-normal">Escrow.</span>
           </motion.h1>
 
           <motion.p
@@ -303,11 +309,10 @@ function App() {
             transition={{ duration: 0.6, delay: 0.2 }}
             className="text-lg font-normal leading-6 opacity-90 mb-8 max-w-2xl text-[color:var(--color-hero-subtitle)]"
           >
-            Stellar helps teams transact quickly, securely,<br />and globally with precision.
+            Fund projects with confidence. Funds are locked in smart contracts<br />and only released when the goal is met.
           </motion.p>
 
-          {!pubKey && (
-            <motion.div
+          <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
@@ -325,35 +330,18 @@ function App() {
                 </div>
               )}
             </motion.div>
-          )}
-        </motion.div>
+          </motion.div>
+        )}
 
-        {/* Dashboard + Video Area */}
-        <motion.div
-          ref={dashboardRef}
-          initial={{ opacity: 0, y: 40 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.8, delay: 0.4 }}
-          style={{ y: dashboardY }}
-          className="relative w-screen min-h-[500px] mt-12 flex items-center justify-center z-30"
-          style={{ marginLeft: 'calc(-50vw + 50%)' }}
-        >
-          {/* Background Video */}
-          <video
-            autoPlay loop muted playsInline
-            className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
-            src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260307_083826_e938b29f-a43a-41ec-a153-3d4730578ab8.mp4"
-          />
-
-          {/* Dashboard Image OR Live App */}
-          {!pubKey ? (
-            <img
-              src={DASHBOARD_IMG}
-              alt="Dashboard UI"
-              className="absolute max-w-5xl w-[90%] rounded-2xl mix-blend-luminosity shadow-2xl border border-[color:var(--color-border)] pointer-events-none"
-            />
-          ) : (
-            <div className="absolute z-40 max-w-5xl w-[90%] grid md:grid-cols-2 gap-6 p-6">
+        {/* Dashboard Content (Logged In) */}
+        {pubKey ? (
+          <motion.div
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.2 }}
+            className="relative z-40 max-w-6xl mx-auto w-full px-6 pb-24 mt-12"
+          >
+            <div className="grid md:grid-cols-2 gap-8">
               {/* Campaign / Wallet Panel */}
               <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 text-left backdrop-blur-xl flex flex-col justify-between">
                 <div>
@@ -442,11 +430,31 @@ function App() {
                 )}
               </div>
             </div>
-          )}
-
-          {/* Bottom Gradient */}
-          <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-background to-transparent z-30 pointer-events-none"></div>
-        </motion.div>
+          </motion.div>
+        ) : (
+          <motion.div
+            ref={dashboardRef}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.8, delay: 0.4 }}
+            style={{ y: dashboardY }}
+            className="relative w-screen min-h-[500px] mt-12 flex items-center justify-center z-30 pointer-events-none"
+            style={{ marginLeft: 'calc(-50vw + 50%)' }}
+          >
+            <video
+              autoPlay loop muted playsInline
+              className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
+              src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260307_083826_e938b29f-a43a-41ec-a153-3d4730578ab8.mp4"
+            />
+            <img
+              src={DASHBOARD_IMG}
+              alt="Dashboard UI"
+              className="absolute max-w-5xl w-[90%] rounded-2xl mix-blend-luminosity shadow-2xl border border-[color:var(--color-border)] pointer-events-none"
+            />
+            {/* Bottom Gradient */}
+            <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-background to-transparent z-30 pointer-events-none"></div>
+          </motion.div>
+        )}
       </section>
 
       {/* Section 2: Testimonial */}
@@ -455,12 +463,12 @@ function App() {
 
           <img src={QUOTE_ICON} alt="Quote" className="w-14 h-10 object-contain opacity-80 invert" />
 
-          <div className="text-4xl md:text-5xl font-medium leading-[1.2] flex flex-wrap">
+          <div className="text-3xl md:text-5xl font-medium leading-[1.3] flex flex-wrap text-center md:text-left justify-center md:justify-start">
             {words.map((word, i) => {
               const start = i / words.length;
               const end = (i + 1) / words.length;
-              const opacity = useTransform(testimonialScroll, [start, end], [0.2, 1]);
-              const color = useTransform(testimonialScroll, [start, end], ["hsl(0 0% 35%)", "hsl(0 0% 100%)"]);
+              const opacity = useTransform(testimonialScroll, [start, end], [0.3, 1]);
+              const color = useTransform(testimonialScroll, [start, end], ["hsl(0 0% 50%)", "hsl(0 0% 100%)"]);
 
               return (
                 <motion.span key={i} style={{ opacity, color }} className="mr-[0.3em] transition-colors duration-100">
