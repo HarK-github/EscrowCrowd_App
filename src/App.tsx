@@ -9,6 +9,8 @@ import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freight
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
 import { Horizon, TransactionBuilder, Networks as StellarNetworks, Asset, Operation, Contract, rpc, nativeToScVal, scValToNative, Account, Keypair } from '@stellar/stellar-sdk';
+import glassAnim from './assets/glassanim.mp4';
+import noLoopAnim from './assets/noloopanim.mp4';
 
 const CONTRACT_ID = 'CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS';
 const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org:443');
@@ -85,12 +87,12 @@ function App() {
         .addOperation(contract.call('get_campaign_state'))
         .setTimeout(30)
         .build();
-        
+
       const response = await rpcServer.simulateTransaction(tx);
       if (rpc.Api.isSimulationSuccess(response)) {
         const resultVal = response.result.retval;
         const state = scValToNative(resultVal);
-        
+
         setCampaign({
           creator: state.creator,
           deadline: Number(state.deadline),
@@ -105,7 +107,7 @@ function App() {
     }
   };
 
-  useEffect(() => { 
+  useEffect(() => {
     fetchCampaignState();
   }, []);
 
@@ -158,7 +160,7 @@ function App() {
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!amount) return;
-    
+
     // Check sufficient balance
     if (balance === "Not Funded" || parseFloat(balance || "0") < parseFloat(amount)) {
       setTxStatus('error');
@@ -174,7 +176,7 @@ function App() {
       const sourceAccount = await server.loadAccount(pubKey);
       const contract = new Contract(CONTRACT_ID);
       const amountStroops = Math.floor(parseFloat(amount) * 10000000).toString();
-      
+
       const operation = contract.call('donate',
         nativeToScVal(pubKey, { type: 'address' }),
         nativeToScVal(amountStroops, { type: 'i128' })
@@ -187,13 +189,13 @@ function App() {
         .addOperation(operation)
         .setTimeout(30)
         .build();
-        
+
       setTxMessage('Simulating transaction...');
       const simRes = await rpcServer.simulateTransaction(transaction);
       if (!rpc.Api.isSimulationSuccess(simRes)) {
         throw new Error("Transaction simulation failed or rejected by contract.");
       }
-      
+
       // Assemble the transaction using the simulation result for correct fees/auth
       transaction = rpc.assembleTransaction(transaction, NETWORK_PASSPHRASE, simRes).built;
 
@@ -210,26 +212,26 @@ function App() {
       setTxMessage('Submitting to network...');
       const signedTx = TransactionBuilder.fromXDR(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
       const sendRes = await rpcServer.sendTransaction(signedTx);
-      
+
       if (sendRes.status === 'PENDING') {
         setTxMessage('Waiting for confirmation...');
         let getTxRes = await rpcServer.getTransaction(sendRes.hash);
         while (getTxRes.status === 'NOT_FOUND') {
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            getTxRes = await rpcServer.getTransaction(sendRes.hash);
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          getTxRes = await rpcServer.getTransaction(sendRes.hash);
         }
         if (getTxRes.status === 'SUCCESS') {
-            setTxStatus('success');
-            setTxMessage('Donation successful!');
-            setTxHash(sendRes.hash);
-            fetchBalance(pubKey);
-            setAmount('');
-            fetchCampaignState(); // Update UI with new state
+          setTxStatus('success');
+          setTxMessage('Donation successful!');
+          setTxHash(sendRes.hash);
+          fetchBalance(pubKey);
+          setAmount('');
+          fetchCampaignState(); // Update UI with new state
         } else {
-            throw new Error('Transaction failed on network.');
+          throw new Error('Transaction failed on network.');
         }
       } else {
-          throw new Error('Transaction submission failed.');
+        throw new Error('Transaction submission failed.');
       }
     } catch (error: any) {
       setTxStatus('error');
@@ -239,8 +241,21 @@ function App() {
 
   return (
     <div className="font-sans antialiased text-foreground bg-background">
-      {/* Section 1: Hero */}
+      {/* Section 1: Hero & Dashboard */}
       <section ref={sectionRef} className="relative min-h-screen overflow-hidden flex flex-col">
+
+        {/* Full Section Background Video (Logged out) */}
+        {!pubKey && (
+          <div className="absolute inset-0 w-full h-full pointer-events-none z-0">
+            <video
+              autoPlay loop muted playsInline
+              className="absolute inset-0 w-full h-full object-cover blur-md"
+              src={glassAnim}
+            />
+            {/* Dark overlay */}
+            <div className="absolute inset-0 bg-black/60"></div>
+          </div>
+        )}
 
         {/* Navbar */}
         <nav className="px-8 md:px-28 py-4 flex items-center justify-between z-50">
@@ -283,36 +298,36 @@ function App() {
             style={{ y: heroTextY, opacity: heroTextOpacity }}
             className="relative z-40 mt-16 md:mt-20 px-4 flex flex-col items-center text-center"
           >
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, delay: 0 }}
-            className="liquid-glass px-3 py-2 rounded-lg mb-6 flex items-center gap-2"
-          >
-            <span className="bg-white text-black rounded-md text-sm font-medium px-2 py-0.5">Live</span>
-            <span className="text-sm font-medium text-muted-foreground pr-1">Live on Stellar Testnet</span>
-          </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0 }}
+              className="liquid-glass px-3 py-2 rounded-lg mb-6 flex items-center gap-2"
+            >
+              <span className="bg-white text-black rounded-md text-sm font-medium px-2 py-0.5">Live</span>
+              <span className="text-sm font-medium text-muted-foreground pr-1">Live on Stellar Testnet</span>
+            </motion.div>
 
-          <motion.h1
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.1 }}
-            className="text-5xl md:text-7xl tracking-[-2px] font-medium leading-tight md:leading-[1.15] mb-3 max-w-4xl"
-          >
-            Decentralized <br />
-            Crowdfunding <span className="font-serif italic font-normal">Escrow.</span>
-          </motion.h1>
+            <motion.h1
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.1 }}
+              className="text-5xl md:text-7xl tracking-[-2px] font-medium leading-tight md:leading-[1.15] mb-3 max-w-4xl"
+            >
+              Decentralized <br />
+              Crowdfunding <span className="font-serif italic font-normal">Escrow.</span>
+            </motion.h1>
 
-          <motion.p
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.2 }}
-            className="text-lg font-normal leading-6 opacity-90 mb-8 max-w-2xl text-[color:var(--color-hero-subtitle)]"
-          >
-            Fund projects with confidence. Funds are locked in smart contracts<br />and only released when the goal is met.
-          </motion.p>
+            <motion.p
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-lg font-normal leading-6 opacity-90 mb-8 max-w-2xl text-[color:var(--color-hero-subtitle)]"
+            >
+              Fund projects with confidence. Funds are locked in smart contracts<br />and only released when the goal is met.
+            </motion.p>
 
-          <motion.div
+            <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.6, delay: 0.3 }}
@@ -363,8 +378,8 @@ function App() {
                             <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
                           </div>
                           <div className="w-full bg-white/10 rounded-full h-3">
-                            <div 
-                              className="bg-white h-3 rounded-full" 
+                            <div
+                              className="bg-white h-3 rounded-full"
                               style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
                             ></div>
                           </div>
@@ -413,11 +428,11 @@ function App() {
                   <div className={`mt-4 p-4 rounded-lg border text-sm flex flex-col gap-2 ${txStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'}`}>
                     <div className="flex items-center gap-2">
                       {txStatus === 'loading' ? (
-                         <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
+                        <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
                       ) : txStatus === 'error' ? (
-                         <span className="text-lg">❌</span>
+                        <span className="text-lg">❌</span>
                       ) : (
-                         <span className="text-lg">✅</span>
+                        <span className="text-lg">✅</span>
                       )}
                       <strong className="block">{txMessage}</strong>
                     </div>
@@ -430,6 +445,15 @@ function App() {
                 )}
               </div>
             </div>
+
+            {/* Right Edge Background Animation (runs once) */}
+            <div className="fixed top-0 right-0 w-full md:w-1/2 h-screen pointer-events-none z-0">
+              <video
+                autoPlay muted playsInline
+                className="w-full h-full object-cover opacity-50 blur-md mix-blend-screen"
+                src={noLoopAnim}
+              />
+            </div>
           </motion.div>
         ) : (
           <motion.div
@@ -441,15 +465,10 @@ function App() {
             className="relative w-screen min-h-[500px] mt-12 flex items-center justify-center z-30 pointer-events-none"
             style={{ marginLeft: 'calc(-50vw + 50%)' }}
           >
-            <video
-              autoPlay loop muted playsInline
-              className="absolute inset-0 w-full h-full object-cover opacity-60 pointer-events-none"
-              src="https://d8j0ntlcm91z4.cloudfront.net/user_38xzZboKViGWJOttwIXH07lWA1P/hf_20260307_083826_e938b29f-a43a-41ec-a153-3d4730578ab8.mp4"
-            />
             <img
               src={DASHBOARD_IMG}
               alt="Dashboard UI"
-              className="absolute max-w-5xl w-[90%] rounded-2xl mix-blend-luminosity shadow-2xl border border-[color:var(--color-border)] pointer-events-none"
+              className="absolute max-w-5xl w-[90%] rounded-2xl shadow-2xl border border-[color:var(--color-border)] pointer-events-none"
             />
             {/* Bottom Gradient */}
             <div className="absolute bottom-0 left-0 w-full h-40 bg-gradient-to-t from-background to-transparent z-30 pointer-events-none"></div>
