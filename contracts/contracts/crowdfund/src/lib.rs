@@ -128,7 +128,31 @@ impl CrowdfundContract {
         }
     }
 
-    pub fn withdraw(env: Env) {
-        // Placeholder
+    /// Withdraw funds if goal is met
+    pub fn withdraw(env: Env, creator: Address) {
+        creator.require_auth();
+
+        let stored_creator: Address = env.storage().instance().get(&DataKey::Creator).expect("not initialized");
+        if creator != stored_creator {
+            panic!("Only creator can withdraw");
+        }
+
+        let deadline: u64 = env.storage().instance().get(&DataKey::Deadline).unwrap();
+        let goal: i128 = env.storage().instance().get(&DataKey::Goal).unwrap();
+        let total_raised: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
+        let current_time = env.ledger().timestamp();
+
+        if current_time < deadline {
+            panic!("Campaign is still active");
+        }
+        if total_raised < goal {
+            panic!("Goal not met");
+        }
+
+        let token_id: Address = env.storage().instance().get(&DataKey::Token).unwrap();
+        let token_client = token::Client::new(&env, &token_id);
+        
+        // Transfer all raised funds to the creator
+        token_client.transfer(&env.current_contract_address(), &creator, &total_raised);
     }
 }
