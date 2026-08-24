@@ -58,6 +58,11 @@ export function DashboardPage() {
 
       setTxMessage('Simulating transaction...');
       const simRes = await rpcServer.simulateTransaction(transaction);
+      
+      if (rpc.Api.isSimulationError(simRes)) {
+        throw new Error(typeof simRes.error === 'string' ? simRes.error : "Transaction simulation failed.");
+      }
+      
       if (!rpc.Api.isSimulationSuccess(simRes)) {
         throw new Error("Transaction simulation failed or rejected by contract.");
       }

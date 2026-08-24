@@ -64,6 +64,10 @@ export function StellarProvider({ children }: { children: ReactNode }) {
         .build();
 
       const response = await rpcServer.simulateTransaction(tx);
+      if (rpc.Api.isSimulationError(response)) {
+        console.error("Simulation error:", response.error);
+        return;
+      }
       if (rpc.Api.isSimulationSuccess(response)) {
         const resultVal = response.result.retval;
         const state = scValToNative(resultVal);
