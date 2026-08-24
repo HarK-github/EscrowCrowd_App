@@ -1,1 +1,9 @@
-{"name": "escrow-crowd"}
+{
+  "name": "escrow-crowd",
+  "rewrites": [
+    {
+      "source": "/(.*)",
+      "destination": "/index.html"
+    }
+  ]
+}
