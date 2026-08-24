@@ -1,11 +1,13 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Wallet } from 'lucide-react';
+import { FaGithub, FaTwitter, FaLinkedin } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../context/StellarContext';
 import glassAnim from '../assets/glassanim.mp4';
+import demoPic from '../assets/Stellar-dApp-front.png';
 import { Navbar } from '../components/Navbar';
-import { Testimonial } from '../components/Testimonial';
+import { Features } from '../components/Features';
 
 export function LandingPage() {
   const { pubKey, connectWallet, appError } = useStellar();
@@ -32,7 +34,7 @@ export function LandingPage() {
         <Navbar />
 
         <motion.div
-          className="relative z-40 mt-16 md:mt-20 px-4 flex flex-col items-center text-center"
+          className="relative z-40 mt-8 md:mt-12 px-4 flex flex-col items-center text-center flex-1"
         >
           <motion.div
             initial={{ opacity: 0, y: 10 }}
@@ -71,7 +73,7 @@ export function LandingPage() {
           >
             <button
               onClick={connectWallet}
-              className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-105 transition-transform"
+              className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-[1.02] transition-transform"
             >
               <Wallet size={18} /> Connect Wallet
             </button>
@@ -82,9 +84,42 @@ export function LandingPage() {
             )}
           </motion.div>
         </motion.div>
+
+        {/* Hero Demo Image */}
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.5 }}
+          className="relative z-40 mt-8 max-w-5xl mx-auto px-4 flex justify-center w-full pb-16"
+        >
+          <img
+            src={demoPic}
+            alt="App Dashboard on Macbook"
+            className="w-full h-auto drop-shadow-[0_0_40px_rgba(255,255,255,0.1)] opacity-90 hover:opacity-100 transition-opacity duration-500"
+          />
+        </motion.div>
       </section>
-      
-      <Testimonial />
+
+      <Features />
+
+      <footer className="relative z-40 border-t border-white/10 bg-black/40 backdrop-blur-md py-12">
+        <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row items-center justify-between gap-6">
+          <p className="text-base text-muted-foreground">
+            Built by <span className="text-white font-semibold">Harshit Kandpal</span> &copy; {new Date().getFullYear()}
+          </p>
+          <div className="flex items-center gap-6">
+            <a href="https://github.com/harshit-kandpal" target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-white transition-colors">
+              <FaGithub size={26} />
+            </a>
+            <a href="#" className="text-muted-foreground hover:text-white transition-colors">
+              <FaTwitter size={26} />
+            </a>
+            <a href="#" className="text-muted-foreground hover:text-white transition-colors">
+              <FaLinkedin size={26} />
+            </a>
+          </div>
+        </div>
+      </footer>
     </div>
   );
 }
