@@ -6,6 +6,11 @@
 
 EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Stellar network using Soroban smart contracts. It guarantees that funds are only released to project creators if their funding goals are met. If a project fails to reach its goal by the deadline, backers can safely reclaim their XLM. 
 
+
+
+![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png) 
+
+
 ## Live Deployment
 - **Frontend Vercel Deployment:** [https://escrow-crowd.vercel.app](https://escrow-crowd.vercel.app)
 - **Deployed Contract Address:** `CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS`
@@ -15,7 +20,6 @@ EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Ste
 
 | Feature | Screenshot |
 |---------|------------|
-| **Landing Page Demo** | ![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png) |
 | **Dashboard Interface** | ![Dashboard](./screenshots/dashboard.png) |
 | **Wallet Selection Options** | ![Wallet Selection](./screenshots/disconnected.png) |
 | **Connecting Wallet** | ![Connecting Wallet](./screenshots/connecting.png) |
