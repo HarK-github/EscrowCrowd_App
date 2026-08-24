@@ -71,10 +71,10 @@ export function DashboardPage() {
         throw new Error("Transaction simulation failed or rejected by contract.");
       }
 
-      transaction = rpc.assembleTransaction(transaction, simRes).built;
+      transaction = rpc.assembleTransaction(transaction, simRes).build();
 
       setTxMessage('Please sign in your wallet...');
-      const xdr = transaction.toXDR();
+      const xdr = transaction.toXdr();
       const signResponse = await StellarWalletsKit.signTransaction(xdr, {
         networkPassphrase: NETWORK_PASSPHRASE,
       });
@@ -84,7 +84,7 @@ export function DashboardPage() {
       }
 
       setTxMessage('Submitting to network...');
-      const signedTx = TransactionBuilder.fromXDR(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
+      const signedTx = TransactionBuilder.fromXdr(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
       const sendRes = await rpcServer.sendTransaction(signedTx);
 
       if (sendRes.status === 'PENDING') {
