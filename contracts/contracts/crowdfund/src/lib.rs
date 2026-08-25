@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, Env, String, Symbol
+    contract, contractimpl, contracttype, token, Address, Env, String, IntoVal
 };
 
 #[contracttype]
@@ -12,6 +12,7 @@ pub enum DataKey {
     TotalRaised,
     Token,
     Donation(Address),
+    BadgeContract,
 }
 
 #[contracttype]
@@ -75,7 +76,7 @@ impl CrowdfundContract {
         let token_client = token::Client::new(&env, &token_id);
         
         // Transfer from donor to the contract
-        token_client.transfer(&donor, &env.current_contract_address(), &amount);
+        token_client.transfer(&donor, env.current_contract_address(), &amount);
 
         let mut total_raised: i128 = env.storage().instance().get(&DataKey::TotalRaised).unwrap();
         total_raised += amount;
@@ -86,11 +87,24 @@ impl CrowdfundContract {
         current_donation += amount;
         env.storage().persistent().set(&donation_key, &current_donation);
 
+        #[allow(deprecated)]
         // Emit an event
         env.events().publish(
-            (soroban_sdk::symbol_short!("donate"), donor),
+            (soroban_sdk::symbol_short!("donate"), donor.clone()),
             amount
         );
+
+        // Try to award badge if threshold is met
+        if current_donation >= 1_000_000_000 {
+            if let Some(badge_contract_id) = env.storage().instance().get::<_, Address>(&DataKey::BadgeContract) {
+                let args = soroban_sdk::vec![&env, donor.into_val(&env), 1u32.into_val(&env)];
+                let _ = env.try_invoke_contract::<soroban_sdk::Val, soroban_sdk::Error>(
+                    &badge_contract_id,
+                    &soroban_sdk::Symbol::new(&env, "award_badge"),
+                    args,
+                );
+            }
+        }
         
         env.storage().instance().extend_ttl(100_000, 100_000);
     }
@@ -155,4 +169,17 @@ impl CrowdfundContract {
         // Transfer all raised funds to the creator
         token_client.transfer(&env.current_contract_address(), &creator, &total_raised);
     }
+
+    /// Link the RewardBadge contract to this campaign
+    pub fn set_badge_contract(env: Env, creator: Address, badge_contract: Address) {
+        creator.require_auth();
+        let stored_creator: Address = env.storage().instance().get(&DataKey::Creator).expect("not initialized");
+        if creator != stored_creator {
+            panic!("Only creator can set badge contract");
+        }
+        env.storage().instance().set(&DataKey::BadgeContract, &badge_contract);
+    }
 }
+
+#[cfg(test)]
+mod test;
