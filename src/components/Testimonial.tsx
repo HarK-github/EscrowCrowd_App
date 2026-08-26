@@ -3,6 +3,19 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 
 const QUOTE_ICON = "https://cdn-icons-png.flaticon.com/512/2997/2997300.png";
 
+function Word({ word, i, totalWords, scrollYProgress }: { word: string, i: number, totalWords: number, scrollYProgress: any }) {
+  const start = i / totalWords;
+  const end = (i + 1) / totalWords;
+  const opacity = useTransform(scrollYProgress, [start, end], [0.3, 1]);
+  const color = useTransform(scrollYProgress, [start, end], ["hsl(0 0% 50%)", "hsl(0 0% 100%)"]);
+
+  return (
+    <motion.span style={{ opacity, color }} className="mr-[0.3em] transition-colors duration-100">
+      {word}
+    </motion.span>
+  );
+}
+
 export function Testimonial() {
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
@@ -19,18 +32,9 @@ export function Testimonial() {
         <img src={QUOTE_ICON} alt="Quote" className="w-14 h-10 object-contain opacity-80 invert" />
 
         <div className="text-3xl md:text-5xl font-medium leading-[1.3] flex flex-wrap text-center md:text-left justify-center md:justify-start">
-          {words.map((word, i) => {
-            const start = i / words.length;
-            const end = (i + 1) / words.length;
-            const opacity = useTransform(scrollYProgress, [start, end], [0.3, 1]);
-            const color = useTransform(scrollYProgress, [start, end], ["hsl(0 0% 50%)", "hsl(0 0% 100%)"]);
-
-            return (
-              <motion.span key={i} style={{ opacity, color }} className="mr-[0.3em] transition-colors duration-100">
-                {word}
-              </motion.span>
-            );
-          })}
+          {words.map((word, i) => (
+            <Word key={i} word={word} i={i} totalWords={words.length} scrollYProgress={scrollYProgress} />
+          ))}
           <span className="text-muted-foreground ml-2">"</span>
         </div>
       </div>

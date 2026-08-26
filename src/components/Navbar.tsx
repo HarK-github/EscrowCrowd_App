@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { Wallet, LogOut } from 'lucide-react';
-import { useStellar } from '../context/StellarContext';
+import { useStellar } from '../hooks/useStellar';
 
 export function Navbar() {
   const { pubKey, connectWallet, disconnectWallet } = useStellar();
