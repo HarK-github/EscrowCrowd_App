@@ -150,6 +150,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     // Polling setup
     let isMounted = true;
     let lastCheckedLedger = 0;
+    let failCount = 0;
 
     const poll = async () => {
       if (!isMounted) return;
@@ -162,7 +163,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
           const currentSeq = latestLedger.sequence;
           if (lastCheckedLedger === 0) {
             // First time, check last 100 ledgers to populate recent activity
-            await fetchRecentEvents(Math.max(1, currentSeq - 10000));
+
             let success = await fetchRecentEvents(Math.max(1, currentSeq - 10000));
             if (!success) {
               success = await fetchRecentEvents(Math.max(1, currentSeq - 1000));
@@ -175,12 +176,16 @@ export function StellarProvider({ children }: { children: ReactNode }) {
           }
           lastCheckedLedger = currentSeq;
         }
+        failCount = 0;
       } catch (e) {
         console.error("Polling error:", e);
+        failCount++;
       }
       
       if (isMounted) {
-        setTimeout(poll, 5000); // Poll every 5 seconds
+        // Exponential backoff: 5s, 10s, 20s, up to 30s
+        const backoffDelay = Math.min(30000, 5000 * Math.pow(2, failCount));
+        setTimeout(poll, failCount > 0 ? backoffDelay : 5000);
       }
     };
 

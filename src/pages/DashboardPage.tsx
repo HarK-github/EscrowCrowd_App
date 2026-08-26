@@ -2,6 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../hooks/useStellar';
+import { useCrowdfundingContract } from '../hooks/useCrowdfundingContract';
 import noLoopAnim from '../assets/noloopanim.mp4';
 import { CONTRACT_ID, NETWORK_PASSPHRASE, server, rpcServer } from '../config';
 import { TransactionBuilder, Contract, nativeToScVal, rpc } from "@stellar/stellar-sdk";
@@ -11,6 +12,7 @@ import { useToast } from '../components/Toast';
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, appError } = useStellar();
   const { toast } = useToast();
+  const { donate } = useCrowdfundingContract();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
@@ -82,48 +84,10 @@ export function DashboardPage() {
     setTxHash('');
 
     try {
-      const sourceAccount = await server.loadAccount(pubKey);
-      const contract = new Contract(CONTRACT_ID);
-      const amountStroops = Math.floor(parseFloat(amount) * 10000000).toString();
-
-      const operation = contract.call('donate',
-        nativeToScVal(pubKey, { type: 'address' }),
-        nativeToScVal(amountStroops, { type: 'i128' })
-      );
-
-      let transaction = new TransactionBuilder(sourceAccount, {
-        fee: '100',
-        networkPassphrase: NETWORK_PASSPHRASE
-      })
-        .addOperation(operation)
-        .setTimeout(30)
-        .build();
-
-      const simRes = await rpcServer.simulateTransaction(transaction);
+      const hash = await donate(pubKey, amount, (msg) => setTxMessage(msg));
       
-      if (rpc.Api.isSimulationError(simRes)) {
-        throw new Error(typeof simRes.error === 'string' ? simRes.error : JSON.stringify(simRes.error));
-      }
-      
-      if (!rpc.Api.isSimulationSuccess(simRes)) {
-        throw new Error("Transaction simulation failed or rejected by contract.");
-      }
-
-      transaction = rpc.assembleTransaction(transaction, simRes).build();
-
-      setTxMessage('Please sign in your wallet...');
-      const xdr = transaction.toXdr();
-      const signResponse = await StellarWalletsKit.signTransaction(xdr, {
-        networkPassphrase: NETWORK_PASSPHRASE,
-      });
-
-      if (!signResponse || !signResponse.signedTxXdr) {
-        throw new Error("Failed to sign transaction or transaction rejected.");
-      }
-
-      setTxMessage('Submitting to network...');
-      const signedTx = TransactionBuilder.fromXdr(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
-      const sendRes = await rpcServer.sendTransaction(signedTx as any);
+      // Simulate the sendRes object structure to keep the existing confirmation loop intact
+      const sendRes = { status: 'PENDING', hash };
 
       if (sendRes.status === 'PENDING') {
         setTxMessage('Waiting for confirmation...');
