@@ -1,16 +1,16 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet } from 'lucide-react';
+import { Wallet, Loader2 } from "lucide-react";
 import { FaGithub, FaTwitter, FaLinkedin } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { useStellar } from '../context/StellarContext';
+import { useStellar } from '../hooks/useStellar';
 import glassAnim from '../assets/glassanim.mp4';
 import demoPic from '../assets/Stellar-dApp-front.png';
 import { Navbar } from '../components/Navbar';
 import { Features } from '../components/Features';
 
 export function LandingPage() {
-  const { pubKey, connectWallet, appError } = useStellar();
+  const { pubKey, connectWallet, appError, isConnecting } = useStellar();
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -75,7 +75,7 @@ export function LandingPage() {
               onClick={connectWallet}
               className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-[1.02] transition-transform"
             >
-              <Wallet size={18} /> Connect Wallet
+              {isConnecting ? <><Loader2 size={18} className="animate-spin" /> Connecting...</> : <><Wallet size={18} /> Connect Wallet</>}
             </button>
             {appError && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm max-w-md text-center">

@@ -1,3 +1,4 @@
+import { ToastProvider } from './components/Toast';
 import React from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { StellarProvider } from './context/StellarContext';
@@ -14,7 +15,8 @@ import '@fontsource/instrument-serif/400-italic.css';
 
 function App() {
   return (
-    <StellarProvider>
+    <ToastProvider>
+      <StellarProvider>
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<LandingPage />} />
@@ -23,6 +25,7 @@ function App() {
         </Routes>
       </BrowserRouter>
     </StellarProvider>
+    </ToastProvider>
   );
 }
 
