@@ -1,22 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { motion } from 'framer-motion';
-import { Wallet, Send, ExternalLink } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useStellar } from '../context/StellarContext';
-import { Navbar } from '../components/Navbar';
+import { useStellar } from '../hooks/useStellar';
 import noLoopAnim from '../assets/noloopanim.mp4';
-import { CONTRACT_ID, rpcServer, NETWORK_PASSPHRASE, server } from '../context/StellarContext';
-import { TransactionBuilder, Contract, nativeToScVal, rpc } from '@stellar/stellar-sdk';
+import { CONTRACT_ID, NETWORK_PASSPHRASE, server, rpcServer } from '../config';
+import { TransactionBuilder, Contract, nativeToScVal, rpc } from "@stellar/stellar-sdk";
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
+import { useToast } from '../components/Toast';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, appError } = useStellar();
+  const { toast } = useToast();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
-  const [txStatus, setTxStatus] = useState('');
+  const [txStatus, setTxStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
+  const [filterMode, setFilterMode] = useState<"all" | "mine">("all");
 
   useEffect(() => {
     if (!pubKey) {
@@ -24,21 +25,57 @@ export function DashboardPage() {
     }
   }, [pubKey, navigate]);
 
+  const myTransactions = useMemo(() => {
+    return recentDonations.filter(d => d.donor === pubKey);
+  }, [recentDonations, pubKey]);
+
+  const displayedDonations = useMemo(() => {
+    if (filterMode === "mine") {
+      return recentDonations.filter(d => d.donor === pubKey);
+    }
+    return recentDonations;
+  }, [recentDonations, filterMode, pubKey]);
+
+  const hasBadge = useMemo(() => {
+    return recentDonations.some(d => d.donor === pubKey && parseFloat(d.amount.toString()) >= 100);
+  }, [recentDonations, pubKey]);
+
+  // Derived campaign stats
+  const progressPercent = campaign ? Math.min((campaign.totalRaised / campaign.goal) * 100, 100) : 0;
+  
+  const daysLeft = useMemo(() => {
+    if (!campaign) return 0;
+    const now = Math.floor(Date.now() / 1000);
+    const diff = campaign.deadline - now;
+    return diff > 0 ? Math.ceil(diff / 86400) : 0;
+  }, [campaign]);
+
+  // Inline Validation
+  const inlineError = useMemo(() => {
+    if (!amount) return null;
+    const parsedAmount = parseFloat(amount);
+    if (parsedAmount <= 0) return "Amount must be greater than 0.";
+    if (balance === "Not Funded" || parseFloat(balance || "0") < parsedAmount) {
+      return "Insufficient XLM balance for this transaction.";
+    }
+    return null;
+  }, [amount, balance]);
+
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      if (txStatus === "loading") {
+        e.preventDefault();
+        e.returnValue = "Transaction is pending. Are you sure you want to leave?";
+        return e.returnValue;
+      }
+    };
+    window.addEventListener("beforeunload", handleBeforeUnload);
+    return () => window.removeEventListener("beforeunload", handleBeforeUnload);
+  }, [txStatus]);
+
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount) return;
-
-    if (parseFloat(amount) <= 0) {
-      setTxStatus('error');
-      setTxMessage('Donation amount must be greater than 0.');
-      return;
-    }
-
-    if (balance === "Not Funded" || parseFloat(balance || "0") < parseFloat(amount)) {
-      setTxStatus('error');
-      setTxMessage('Insufficient XLM balance for this transaction.');
-      return;
-    }
+    if (!amount || inlineError) return;
 
     setTxStatus('loading');
     setTxMessage('Preparing transaction...');
@@ -62,7 +99,6 @@ export function DashboardPage() {
         .setTimeout(30)
         .build();
 
-      setTxMessage('Simulating transaction...');
       const simRes = await rpcServer.simulateTransaction(transaction);
       
       if (rpc.Api.isSimulationError(simRes)) {
@@ -87,7 +123,7 @@ export function DashboardPage() {
 
       setTxMessage('Submitting to network...');
       const signedTx = TransactionBuilder.fromXdr(signResponse.signedTxXdr, NETWORK_PASSPHRASE);
-      const sendRes = await rpcServer.sendTransaction(signedTx);
+      const sendRes = await rpcServer.sendTransaction(signedTx as any);
 
       if (sendRes.status === 'PENDING') {
         setTxMessage('Waiting for confirmation...');
@@ -102,6 +138,7 @@ export function DashboardPage() {
           setTxHash(sendRes.hash);
           fetchBalance(pubKey);
           setAmount('');
+          toast("Donation successful!", "success");
           fetchCampaignState();
         } else {
           throw new Error('Transaction failed on network.');
@@ -109,255 +146,316 @@ export function DashboardPage() {
       } else {
         throw new Error('Transaction submission failed.');
       }
-    } catch (error: any) {
+    } catch (err: any) {
+      console.error(err);
       setTxStatus('error');
-      setTxMessage(error?.message || "Transaction failed");
+      setTxMessage(err?.message || 'Transaction failed');
+      toast(err?.message || "Transaction failed", "error");
     }
   };
 
-  if (!pubKey) return null;
-
   return (
-    <div className="font-sans antialiased text-foreground bg-background h-screen flex overflow-hidden relative">
+    <div className="font-sans antialiased text-foreground bg-background min-h-screen flex flex-col relative overflow-hidden">
+      {txStatus === "loading" && (
+        <div className="absolute top-0 left-0 w-full h-1.5 z-[9999] bg-accent/20 overflow-hidden">
+          <div className="w-full h-full bg-accent animate-loading-bar rounded-r-full"></div>
+        </div>
+      )}
 
-      {/* Background Gradient & Video */}
+      
+      {/* Background Effects */}
       <div className="fixed inset-0 z-0 pointer-events-none">
-        <div
-          className="absolute inset-0 z-0"
-          style={{
-            background: "radial-gradient(125% 125% at 50% 10%, #000 40%, rgba(0, 88, 67, 0.2) 100%)",
-          }}
-        />
+        <div className="absolute inset-0 z-0" style={{ background: 'radial-gradient(125% 125% at 50% 10%, #000 40%, rgba(0,88,67,0.2) 100%)' }} />
         <div className="absolute right-0 w-full md:w-1/2 h-screen">
-          <video
-            autoPlay muted playsInline
-            className="w-full h-full object-cover opacity-15 mix-blend-screen"
-            src={noLoopAnim}
-          />
+          <video autoPlay muted playsInline className="w-full h-full object-cover opacity-15 mix-blend-screen" src={noLoopAnim} />
         </div>
       </div>
 
-      {/* Floating Glassy Sidebar Layout */}
-      <div className="p-6 pr-0 z-40 h-full flex-shrink-0">
-        <aside className="w-64 h-full liquid-glass rounded-2xl border border-white/10 flex flex-col backdrop-blur-xl shadow-2xl overflow-hidden">
-          <div className="text-xl font-bold p-6 border-b border-white/10 flex items-center gap-2 tracking-tight">
+      <div className="z-40 relative flex-1 flex flex-col w-full">
+        
+        {/* Header */}
+        <header className="flex justify-between items-center mb-6 px-6 sm:px-10 py-6 border-b border-white/10 bg-black/20 backdrop-blur-md w-full">
+          <div className="text-2xl font-bold tracking-tight flex items-center gap-2">
             EscrowCrowd
           </div>
-          <nav className="flex flex-col gap-2 p-4">
-            <a href="#" className="px-4 py-2 rounded-lg bg-white/10 text-white font-medium">Overview Dashboard</a>
-            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">Active Campaigns</a>
-            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">My Escrows</a>
-            <a href="#" className="px-4 py-2 rounded-lg text-muted-foreground hover:bg-white/5 transition-colors">Transaction History</a>
-          </nav>
-        </aside>
-      </div>
-
-      {/* Main Content Layout */}
-      <div className="flex-1 flex flex-col z-40 overflow-y-auto">
-
-        {/* Top Header */}
-        <header className="h-24 flex items-center justify-end px-8 sticky top-0 z-50 pt-6">
-          <div className="flex items-center gap-4">
-            <span className="font-mono text-sm px-4 py-2 bg-black/60 border border-white/10 rounded-full backdrop-blur-md">
-              {pubKey.slice(0, 4)}...{pubKey.slice(-4)}
-            </span>
-            <button
-              onClick={() => {
-                disconnectWallet();
-                navigate('/');
-              }}
-              className="text-sm font-medium bg-white/10 text-white backdrop-blur-md px-5 py-2 rounded-full hover:bg-white/20 hover:scale-[1.02] transition-all"
-            >
-              Disconnect
-            </button>
+          <div className="flex items-center gap-3">
+            {pubKey ? (
+              <>
+                <div className="hidden sm:flex items-center border border-white/5 bg-transparent rounded-full py-1.5 px-4 backdrop-blur-md">
+                  <Wallet size={14} className="text-muted-foreground mr-2" />
+                  <span className="font-mono text-sm mr-3 border-r border-white/20 pr-3">
+                    {pubKey.slice(0, 5)}...{pubKey.slice(-4)}
+                  </span>
+                  <span className="font-semibold text-sm text-accent">
+                    {balance ? `${balance} XLM` : <Loader2 size={14} className="animate-spin inline" />}
+                  </span>
+                </div>
+                <button
+                  onClick={disconnectWallet}
+                  className="text-sm font-medium bg-white/10 text-white backdrop-blur-md px-4 py-1.5 rounded-full hover:bg-white/20 transition-colors"
+                >
+                  Disconnect
+                </button>
+              </>
+            ) : (
+              <span className="text-sm text-muted-foreground animate-pulse">Connecting...</span>
+            )}
           </div>
         </header>
-
-        {/* Dashboard Content Grid */}
-        <main className="p-8 pt-4 flex flex-col gap-8 max-w-7xl mx-auto w-full">
-
-          {/* Top Metrics Row */}
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Escrow Balance</div>
-              <div className="text-2xl font-semibold font-serif italic">{balance !== null ? `${balance} XLM` : '...'}</div>
-            </div>
-            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Target Goal</div>
-              <div className="text-2xl font-semibold font-serif italic">{campaign ? `${campaign.goal} XLM` : '...'}</div>
-            </div>
-            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Current Status</div>
-              <div className="text-lg font-semibold flex items-center gap-2 capitalize">
-                {campaign ? (
-                  <>
-                    <span className={`w-2 h-2 rounded-full ${campaign.status === 'active' ? 'bg-green-500 animate-pulse' : 'bg-gray-500'}`}></span>
-                    {campaign.status}
-                  </>
-                ) : '...'}
-              </div>
-            </div>
-            <div className="liquid-glass rounded-2xl p-6 shadow-xl border border-white/10 backdrop-blur-xl">
-              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Deadline</div>
-              <div className="text-lg font-semibold leading-tight">
-                {campaign ? (
-                  <>
-                    {new Date(campaign.deadline * 1000).toLocaleDateString()}<br />
-                    <span className="text-sm text-muted-foreground font-normal">
-                      {new Date(campaign.deadline * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </>
-                ) : '...'}
-              </div>
-            </div>
+        {appError && (
+          <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center shadow-xl text-sm max-w-5xl mx-auto w-full">
+            <span>{appError}</span>
           </div>
+        )}
 
-          {/* Main Layout: 2/3 Left, 1/3 Right */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-            {/* Left Column */}
-            <div className="lg:col-span-2 flex flex-col gap-8">
-
-              {/* Crowdfund Status */}
-              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl flex flex-col">
-                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
-                  <Wallet size={20} /> Crowdfund Status
-                </h2>
-
-                <div className="mb-6">
-                  <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">My Address</div>
-                  <div className="bg-black/40 p-3 rounded-lg border border-white/5 font-mono text-sm text-muted-foreground break-all">
-                    {pubKey}
-                  </div>
-                </div>
-
-                {campaign && (
-                  <div>
-                    <div className="flex justify-between items-end mb-2">
-                      <span className="text-sm font-medium text-muted-foreground uppercase tracking-wider">Progress</span>
-                      <span className="text-sm opacity-80">{campaign.totalRaised} / {campaign.goal} XLM</span>
-                    </div>
-                    <div className="w-full bg-white/10 rounded-full h-2 overflow-hidden">
-                      <div
-                        className="bg-white h-2 rounded-full transition-all duration-500 ease-out"
-                        style={{ width: `${Math.min((campaign.totalRaised / campaign.goal) * 100, 100)}%` }}
-                      ></div>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Live Activity Console */}
-              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl flex-1 flex flex-col">
-                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
-                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-                  Live Activity
-                </h2>
-                <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1 font-mono text-sm">
-                  {recentDonations.length === 0 ? (
-                    <p className="text-muted-foreground">&gt; Waiting for activity...</p>
+        <div className="flex flex-col md:flex-row gap-6 md:gap-8 flex-1 max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mb-8">
+          
+          {/* Main Content Area */}
+          <div className="flex-1 flex flex-col gap-6 md:gap-8">
+            
+            {/* Top Row: Progress and Badges (Stacked on Mobile, Row on Desktop) */}
+            <div className="flex flex-col md:flex-row gap-6">
+              
+              {/* Campaign Progress Card */}
+              <div className="flex-[2] p-6 border border-white/5 rounded-xl bg-transparent flex flex-col justify-between">
+                <div>
+                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                    <Target size={16} /> Campaign Progress
+                  </h2>
+                  {campaign ? (
+                    <>
+                      <div className="text-4xl md:text-5xl font-semibold font-serif italic mb-2 tracking-tight">
+                        {progressPercent.toFixed(0)}%
+                      </div>
+                      <div className="text-muted-foreground font-mono text-sm mb-6">
+                        <strong className="text-white">{campaign.totalRaised}</strong> / {campaign.goal} XLM
+                      </div>
+                      <div className="w-full bg-white/10 rounded-full h-3 overflow-hidden mb-4 relative">
+                        <div
+                          className="bg-accent h-3 rounded-full transition-all duration-1000 ease-out"
+                          style={{ width: `${progressPercent}%` }}
+                        ></div>
+                      </div>
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="flex items-center gap-1.5 text-muted-foreground">
+                          <Clock size={14} /> Deadline: {daysLeft} days left
+                        </span>
+                        <span className="px-2.5 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-semibold capitalize border border-green-500/30 flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
+                          {campaign.status}
+                        </span>
+                      </div>
+                    </>
                   ) : (
-                    recentDonations.map((event) => {
-                      const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
-                      return (
-                        <div key={event.id} className="bg-white/5 p-3 rounded-lg border border-white/5 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-muted-foreground">
-                            <span>&gt;</span>
-                            <span className="text-white opacity-80">{event.donor.slice(0, 6)}...{event.donor.slice(-4)}</span>
-                            <span>donated</span>
-                            <strong className="text-white">{event.amount} XLM</strong>
-                          </div>
-                          <span className="text-xs text-muted-foreground opacity-60">
-                            {timeAgo < 1 ? 'Just now' : `${timeAgo} min ago`}
-                          </span>
-                        </div>
-                      );
-                    })
+                    <div className="animate-pulse flex flex-col gap-4">
+                      <div className="h-10 w-24 bg-white/10 rounded-lg"></div>
+                      <div className="h-4 w-40 bg-white/10 rounded-lg"></div>
+                      <div className="h-3 w-full bg-white/10 rounded-full"></div>
+                    </div>
                   )}
                 </div>
               </div>
 
-            </div>
-
-            {/* Right Column */}
-            <div className="flex flex-col gap-8">
-
-              {/* Support Campaign Action Card */}
-              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/20 backdrop-blur-xl">
-                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
-                  <Send size={20} /> Support Campaign
+              {/* Badges Card */}
+              <div className="flex-1 p-6 border border-white/5 rounded-xl bg-transparent flex flex-col">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4 flex items-center gap-2">
+                  <Trophy size={16} /> Your Badges
                 </h2>
-                <form onSubmit={handleSendTransaction} className="space-y-4">
-                  <div>
-                    <label className="block text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2">Donation Amount (XLM)</label>
-                    <div className="flex bg-black/60 border border-white/10 rounded-lg overflow-hidden p-1">
-                      <input
-                        type="number" step="1" min="1" placeholder="10" value={amount} onChange={(e) => {
-                          if (Number(e.target.value) >= 0) {
-                            setAmount(e.target.value);
-                          }
-                        }} required
-                        className="w-full bg-transparent px-3 py-2 text-white focus:outline-none font-mono text-sm"
-                      />
+                <div className="flex-1 flex flex-col items-center justify-center py-4 text-center">
+                  {hasBadge ? (
+                    <div className="flex flex-col items-center gap-3 animate-in zoom-in duration-500">
+                      <div className="w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400/20 to-yellow-600/40 border border-yellow-500/50 flex items-center justify-center shadow-[0_0_20px_rgba(234,179,8,0.2)]">
+                        <span className="text-3xl">🏅</span>
+                      </div>
+                      <div>
+                        <div className="font-semibold text-yellow-500">Top Supporter</div>
+                        <div className="text-xs text-muted-foreground mt-1">Donated &gt; 100 XLM</div>
+                      </div>
                     </div>
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={txStatus === 'loading' || !amount || balance === "Not Funded"}
-                    className="w-full bg-foreground text-background py-3.5 rounded-full text-base font-medium hover:scale-[1.02] disabled:hover:scale-100 disabled:opacity-50 transition-transform flex justify-center items-center gap-2"
-                  >
-                    {txStatus === 'loading' ? (
-                      <><span className="animate-spin h-4 w-4 border-2 border-black border-t-transparent rounded-full"></span> Processing...</>
-                    ) : 'Donate XLM'}
-                  </button>
-                </form>
-
-                {txStatus && (
-                  <div className={`mt-4 p-4 rounded-lg border text-sm flex flex-col gap-2 ${txStatus === 'error' ? 'bg-red-500/10 border-red-500/20 text-red-400' : 'bg-green-500/10 border-green-500/20 text-green-400'}`}>
-                    <div className="flex items-center gap-2">
-                      {txStatus === 'loading' ? (
-                        <span className="animate-spin h-4 w-4 border-2 border-current border-t-transparent rounded-full"></span>
-                      ) : txStatus === 'error' ? (
-                        <span className="text-lg">❌</span>
-                      ) : (
-                        <span className="text-lg">✅</span>
-                      )}
-                      <strong className="block">{txMessage}</strong>
+                  ) : (
+                    <div className="flex flex-col items-center gap-2 opacity-50 grayscale">
+                      <div className="w-12 h-12 rounded-full bg-white/5 border border-white/10 flex items-center justify-center">
+                        <Trophy size={20} className="text-muted-foreground" />
+                      </div>
+                      <span className="text-sm text-muted-foreground">None yet</span>
                     </div>
-                    {txHash && (
-                      <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 opacity-70 hover:opacity-100 underline">
-                        View on Stellar Expert <ExternalLink size={12} />
-                      </a>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              {/* Technical Details */}
-              <div className="liquid-glass rounded-2xl p-8 shadow-2xl border border-white/10 backdrop-blur-xl">
-                <h2 className="text-lg font-semibold mb-6 flex items-center gap-2 border-b border-white/10 pb-4">
-                  <span className="opacity-80">🔗</span> Contract Details
-                </h2>
-
-                <div className="space-y-4">
-                  <div className="flex justify-between items-center py-2 border-b border-white/5">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Contract ID</span>
-                    <a href={`https://stellar.expert/explorer/testnet/contract/${CONTRACT_ID}`} target="_blank" rel="noreferrer" className="font-mono text-sm opacity-90 hover:text-white transition-colors flex items-center gap-1">
-                      {CONTRACT_ID.slice(0, 8)}...{CONTRACT_ID.slice(-4)} <ExternalLink size={12} />
-                    </a>
-                  </div>
-                  <div className="flex justify-between items-center py-2">
-                    <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Creator</span>
-                    <a href={`https://stellar.expert/explorer/testnet/account/${campaign?.creator || ''}`} target="_blank" rel="noreferrer" className="font-mono text-sm opacity-90 hover:text-white transition-colors flex items-center gap-1">
-                      {campaign?.creator ? `${campaign.creator.slice(0, 8)}...${campaign.creator.slice(-4)}` : '...'} <ExternalLink size={12} />
-                    </a>
-                  </div>
+                  )}
                 </div>
               </div>
+            </div>
 
+            {/* Donate Form (Prioritized on Mobile) */}
+            <div className="p-6 border border-white/5 rounded-xl bg-transparent order-first md:order-none relative overflow-hidden">
+              <div className="absolute top-0 left-0 w-1 h-full bg-accent"></div>
+              <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+                <Send size={18} className="text-accent" /> Make a Donation
+              </h2>
+              
+              <form onSubmit={handleSendTransaction} className="flex flex-col gap-4">
+                <div className="relative flex items-center border border-white/5 bg-transparent rounded-xl overflow-hidden focus-within:border-accent/50 transition-colors">
+                  <input
+                    type="number"
+                    step="1"
+                    min="1"
+                    placeholder="10"
+                    value={amount}
+                    onChange={(e) => {
+                      if (Number(e.target.value) >= 0 || e.target.value === '') {
+                        setAmount(e.target.value);
+                        setTxStatus('idle'); // reset state on new input
+                      }
+                    }}
+                    required
+                    disabled={txStatus === 'loading'}
+                    className="w-full bg-transparent px-4 py-4 text-xl text-white font-mono placeholder:text-white/20 focus:outline-none"
+                  />
+                  <div className="pr-4 font-mono text-muted-foreground font-semibold">XLM</div>
+                </div>
+
+                {/* Inline Validation Error */}
+                {inlineError && amount !== '' && txStatus === 'idle' && (
+                  <div className="text-red-400 text-sm flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1">
+                    <XCircle size={14} /> {inlineError}
+                  </div>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={txStatus === 'loading' || !!inlineError || !amount}
+                  className={`w-full py-4 rounded-xl text-base font-semibold transition-all duration-300 flex justify-center items-center gap-2 
+                    ${txStatus === 'success' ? 'bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 
+                      txStatus === 'error' ? 'bg-red-500 text-white' : 
+                      'bg-accent text-accent-foreground hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(0,184,148,0.2)] disabled:hover:scale-100 disabled:opacity-50 disabled:shadow-none'
+                    }`}
+                >
+                  {txStatus === 'loading' ? (
+                    <><Loader2 size={18} className="animate-spin" /> {txMessage}</>
+                  ) : txStatus === 'success' ? (
+                    <><CheckCircle2 size={18} /> Donation Successful</>
+                  ) : txStatus === 'error' ? (
+                    <><XCircle size={18} /> Retry Donation</>
+                  ) : (
+                    'Donate Now'
+                  )}
+                </button>
+
+                {txStatus === 'error' && (
+                  <div className="text-red-400 text-sm mt-1 text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                    {txMessage}
+                  </div>
+                )}
+                
+                {txStatus === 'success' && txHash && (
+                  <div className="text-center mt-1">
+                    <a href={`https://stellar.expert/explorer/testnet/tx/${txHash}`} target="_blank" rel="noreferrer" className="text-xs text-muted-foreground hover:text-white underline inline-flex items-center gap-1">
+                      View transaction on Stellar Expert <ExternalLink size={10} />
+                    </a>
+                  </div>
+                )}
+              </form>
+            </div>
+
+            {/* Live Activity Feed */}
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl backdrop-blur-xl flex flex-col h-[350px]">
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Activity size={16} /> Activity Feed
+                </h2>
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-widest bg-accent/10 px-2 py-1 rounded-md border border-accent/20">
+                  <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
+                  Live
+                </div>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 relative">
+                {!campaign ? (
+                  <div className="absolute inset-0 flex flex-col gap-3">
+                     {[1,2,3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse w-full"></div>)}
+                  </div>
+                ) : displayedDonations.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60">
+                    <Activity size={32} className="mb-2 opacity-50" />
+                    <p>No activity yet.</p>
+                  </div>
+                ) : (
+                  displayedDonations.map((event, idx) => {
+                    const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
+                    const isTopSupporter = parseFloat(event.amount.toString()) >= 100;
+                    
+                    return (
+                      <div 
+                        key={event.id} 
+                        className="p-3.5 border-y border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors animate-in slide-in-from-top-2 fade-in duration-300"
+                        style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center font-mono text-xs text-muted-foreground shrink-0 border border-white/10">
+                            {event.donor.slice(0,2)}
+                          </div>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
+                            <span className="font-mono text-sm text-white/90">{event.donor.slice(0, 6)}...{event.donor.slice(-4)}</span>
+                            <span className="text-muted-foreground text-sm hidden sm:inline">donated</span>
+                            <div className="flex items-center gap-1.5">
+                              <strong className="text-white font-mono bg-white/10 px-1.5 py-0.5 rounded text-sm">{event.amount} XLM</strong>
+                              {isTopSupporter && <span title="Top Supporter Badge Earned">🏅</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-medium shrink-0 ml-2">
+                          {timeAgo < 1 ? 'Just now' : `${timeAgo}m ago`}
+                        </span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+
+          </div>
+
+          {/* Right Sidebar: My Transactions */}
+          <div className="w-full md:w-80 flex flex-col gap-6 h-[350px] md:h-auto md:min-h-full">
+            <div className="liquid-glass rounded-2xl p-6 shadow-xl backdrop-blur-xl flex flex-col h-[350px] md:h-[calc(100vh-250px)]">
+              <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
+                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Activity size={16} /> My Transactions
+                </h2>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 relative">
+                {!campaign ? (
+                  <div className="absolute inset-0 flex flex-col gap-3">
+                     {[1,2,3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse w-full"></div>)}
+                  </div>
+                ) : displayedDonations.filter(d => d.donor === pubKey).length === 0 ? (
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60">
+                    <p>No transactions yet.</p>
+                  </div>
+                ) : (
+                  displayedDonations.filter(d => d.donor === pubKey).map((event, idx) => {
+                    const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
+                    return (
+                      <div 
+                        key={event.id} 
+                        className="bg-black/30 p-3.5 rounded-xl border border-white/5 flex flex-col gap-1 hover:bg-white/5 transition-colors animate-in slide-in-from-top-2 fade-in duration-300"
+                        style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="text-white font-mono bg-white/10 px-1.5 py-0.5 rounded text-sm">{event.amount} XLM</span>
+                          <span className="text-xs text-muted-foreground font-medium">
+                            {timeAgo < 1 ? 'Just now' : `${timeAgo}m ago`}
+                          </span>
+                        </div>
+                        <span className="text-xs text-muted-foreground font-mono">Tx ID: {event.id.slice(0, 12)}...</span>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </div>
           </div>
-        </main>
+        </div>
       </div>
     </div>
   );

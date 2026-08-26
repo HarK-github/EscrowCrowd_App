@@ -1,15 +1,12 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+/* eslint-disable react-refresh/only-export-components */
+import React, { createContext, useState, useEffect, ReactNode } from "react";
 import { StellarWalletsKit, Networks } from '@creit.tech/stellar-wallets-kit';
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
-import { Horizon, TransactionBuilder, Networks as StellarNetworks, Contract, rpc, scValToNative, Account, Keypair, nativeToScVal } from '@stellar/stellar-sdk';
-
-export const CONTRACT_ID = 'CAKBK6LDUAYFCIGDMGWGYEXDSRSVCLDJDUXHOSCS2BQYBNZLS3NPFRQS';
-export const rpcServer = new rpc.Server('https://soroban-testnet.stellar.org:443');
-export const HORIZON_URL = 'https://horizon-testnet.stellar.org';
-export const NETWORK_PASSPHRASE = StellarNetworks.TESTNET;
-export const server = new Horizon.Server(HORIZON_URL);
+import { TransactionBuilder, Contract, rpc, scValToNative, Account, Keypair } from "@stellar/stellar-sdk";
+import { CONTRACT_ID, rpcServer, server, NETWORK_PASSPHRASE } from '../config';
+import { useToast } from '../components/Toast';
 
 StellarWalletsKit.init({
   network: Networks.TESTNET,
@@ -34,6 +31,7 @@ export interface DonationEvent {
 }
 
 interface StellarContextType {
+  isConnecting: boolean;
   pubKey: string;
   balance: string | null;
   appError: string;
@@ -45,10 +43,12 @@ interface StellarContextType {
   fetchCampaignState: () => Promise<void>;
 }
 
-const StellarContext = createContext<StellarContextType | undefined>(undefined);
+export const StellarContext = createContext<StellarContextType | undefined>(undefined);
 
 export function StellarProvider({ children }: { children: ReactNode }) {
   const [pubKey, setPubKey] = useState(() => localStorage.getItem('stellarPubKey') || '');
+  const { toast } = useToast();
+  const [isConnecting, setIsConnecting] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
   const [appError, setAppError] = useState('');
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
@@ -58,7 +58,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     try {
       const dummyAccount = new Account(Keypair.random().publicKey(), '0');
       const contract = new Contract(CONTRACT_ID);
-      const tx = new TransactionBuilder(dummyAccount, { fee: '100', networkPassphrase: StellarNetworks.TESTNET })
+      const tx = new TransactionBuilder(dummyAccount, { fee: '100', networkPassphrase: NETWORK_PASSPHRASE })
         .addOperation(contract.call('get_campaign_state'))
         .setTimeout(30)
         .build();
@@ -96,7 +96,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
             contractIds: [CONTRACT_ID],
           },
         ],
-        limit: 10,
+        limit: 100,
       });
 
       if (eventsRes && eventsRes.events) {
@@ -125,19 +125,26 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
         if (parsedEvents.length > 0) {
           setRecentDonations((prev) => {
-            const combined = [...parsedEvents, ...prev];
+            const combined = [...parsedEvents.reverse(), ...prev];
             // Deduplicate by id
             const unique = combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-            return unique.slice(0, 10); // Keep last 10
+            return unique;
           });
         }
+
+          });
+        }
+        return true;
       }
     } catch (e) {
-      console.error("Failed to fetch events:", e);
+    } catch (e: any) {
+      console.error("Failed to fetch events:", e?.message || e);
+      return false;
     }
   };
 
   useEffect(() => {
+    // eslint-disable-next-line react/set-state-in-effect
     fetchCampaignState();
     
     // Polling setup
@@ -147,14 +154,22 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     const poll = async () => {
       if (!isMounted) return;
       try {
-        await fetchCampaignState();
+        await // eslint-disable-next-line react/set-state-in-effect
+    fetchCampaignState();
         
         const latestLedger = await rpcServer.getLatestLedger();
         if (latestLedger.sequence) {
           const currentSeq = latestLedger.sequence;
           if (lastCheckedLedger === 0) {
             // First time, check last 100 ledgers to populate recent activity
-            await fetchRecentEvents(currentSeq - 100);
+            await fetchRecentEvents(Math.max(1, currentSeq - 10000));
+            let success = await fetchRecentEvents(Math.max(1, currentSeq - 10000));
+            if (!success) {
+              success = await fetchRecentEvents(Math.max(1, currentSeq - 1000));
+              if (!success) {
+                 await fetchRecentEvents(currentSeq - 100);
+              }
+            }
           } else if (currentSeq > lastCheckedLedger) {
             await fetchRecentEvents(lastCheckedLedger);
           }
@@ -174,6 +189,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     return () => {
       isMounted = false;
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchBalance = async (publicKey: string) => {
@@ -181,18 +197,20 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       const account = await server.loadAccount(publicKey);
       const nativeBalance = account.balances.find(b => b.asset_type === 'native');
       setBalance(nativeBalance ? nativeBalance.balance : "0");
-    } catch (e) {
+    } catch {
       setBalance("Not Funded");
     }
   };
 
   const connectWallet = async () => {
+    setIsConnecting(true);
     setAppError('');
     try {
       const { address } = await StellarWalletsKit.authModal();
       if (address) {
         setPubKey(address);
         localStorage.setItem('stellarPubKey', address);
+        toast("Wallet connected successfully", "success");
         fetchBalance(address);
       }
     } catch (e: any) {
@@ -200,9 +218,13 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       const msg = e?.message?.toLowerCase() || '';
       if (msg.includes('not installed') || msg.includes('not found')) {
         setAppError("Wallet not found. Please install the required extension.");
+        toast("Wallet not found", "error");
       } else {
-        setAppError("Connection rejected or failed.");
+        setAppError("Connection failed or user rejected the request.");
+        toast("Connection rejected", "error");
       }
+    } finally {
+      setIsConnecting(false);
     }
   };
 
@@ -215,23 +237,19 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   // Fetch balance on initial load if pubKey exists
   useEffect(() => {
     if (pubKey) {
+      // eslint-disable-next-line react/set-state-in-effect
       fetchBalance(pubKey);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <StellarContext.Provider value={{
-      pubKey, balance, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState
+      pubKey, balance, isConnecting, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState
     }}>
       {children}
     </StellarContext.Provider>
   );
 }
 
-export function useStellar() {
-  const context = useContext(StellarContext);
-  if (context === undefined) {
-    throw new Error('useStellar must be used within a StellarProvider');
-  }
-  return context;
-}
+
