@@ -132,13 +132,24 @@ export function DashboardPage() {
       <div className="z-40 relative flex-1 flex flex-col w-full">
         
         {/* Header */}
-        <header className="flex justify-between items-center mb-6 px-6 sm:px-10 py-6 border-b border-white/10 bg-black/20 backdrop-blur-md w-full">
-          <div className="text-2xl font-bold tracking-tight flex items-center gap-2">
+        <header className="flex justify-between items-center mb-6 px-4 sm:px-10 py-4 sm:py-6 border-b border-white/10 bg-black/20 backdrop-blur-md w-full">
+          <div className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
             EscrowCrowd
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
             {pubKey ? (
               <>
+                {/* Mobile compact wallet badge */}
+                <div className="flex sm:hidden items-center border border-white/10 bg-black/40 rounded-full py-1 px-2.5 backdrop-blur-md text-xs">
+                  <span className="font-mono text-[11px] mr-1.5 pr-1.5 border-r border-white/20 text-neutral-300">
+                    {pubKey.slice(0, 4)}...{pubKey.slice(-3)}
+                  </span>
+                  <span className="font-semibold text-accent text-[11px]">
+                    {balance ? `${balance} XLM` : <Loader2 size={10} className="animate-spin inline" />}
+                  </span>
+                </div>
+
+                {/* Desktop wallet badge */}
                 <div className="hidden sm:flex items-center border border-white/5 bg-transparent rounded-full py-1.5 px-4 backdrop-blur-md">
                   <Wallet size={14} className="text-muted-foreground mr-2" />
                   <span className="font-mono text-sm mr-3 border-r border-white/20 pr-3">
@@ -150,13 +161,13 @@ export function DashboardPage() {
                 </div>
                 <button
                   onClick={disconnectWallet}
-                  className="text-sm font-medium bg-white/10 text-white backdrop-blur-md px-4 py-1.5 rounded-full hover:bg-white/20 transition-colors"
+                  className="text-xs sm:text-sm font-medium bg-white/10 text-white backdrop-blur-md px-3 sm:px-4 py-1.5 min-h-[36px] sm:min-h-[40px] rounded-full hover:bg-white/20 transition-colors flex items-center justify-center shrink-0"
                 >
                   Disconnect
                 </button>
               </>
             ) : (
-              <span className="text-sm text-muted-foreground animate-pulse">Connecting...</span>
+              <span className="text-xs sm:text-sm text-muted-foreground animate-pulse">Connecting...</span>
             )}
           </div>
         </header>
@@ -244,9 +255,9 @@ export function DashboardPage() {
             </div>
 
             {/* Donate Form (Prioritized on Mobile) */}
-            <div className="p-6 border border-white/5 rounded-xl bg-transparent order-first md:order-none relative overflow-hidden">
+            <div className="p-5 sm:p-6 border border-white/5 rounded-xl bg-transparent order-first md:order-none relative overflow-hidden">
               <div className="absolute top-0 left-0 w-1 h-full bg-accent"></div>
-              <h2 className="text-lg font-semibold mb-6 flex items-center gap-2">
+              <h2 className="text-base sm:text-lg font-semibold mb-4 sm:mb-6 flex items-center gap-2">
                 <Send size={18} className="text-accent" /> Make a Donation
               </h2>
               
@@ -266,40 +277,40 @@ export function DashboardPage() {
                     }}
                     required
                     disabled={txStatus === 'loading'}
-                    className="w-full bg-transparent px-4 py-4 text-xl text-white font-mono placeholder:text-white/20 focus:outline-none"
+                    className="w-full bg-transparent px-4 py-3.5 sm:py-4 text-lg sm:text-xl text-white font-mono placeholder:text-white/20 focus:outline-none min-h-[48px]"
                   />
-                  <div className="pr-4 font-mono text-muted-foreground font-semibold">XLM</div>
+                  <div className="pr-4 font-mono text-muted-foreground font-semibold text-sm sm:text-base">XLM</div>
                 </div>
 
                 {/* Inline Validation Error */}
                 {inlineError && amount !== '' && txStatus === 'idle' && (
-                  <div className="text-red-400 text-sm flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1">
-                    <XCircle size={14} /> {inlineError}
+                  <div className="text-red-400 text-xs sm:text-sm flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1">
+                    <XCircle size={14} className="shrink-0" /> <span>{inlineError}</span>
                   </div>
                 )}
 
                 <button
                   type="submit"
                   disabled={txStatus === 'loading' || !!inlineError || !amount}
-                  className={`w-full py-4 rounded-xl text-base font-semibold transition-all duration-300 flex justify-center items-center gap-2 
+                  className={`w-full py-3.5 sm:py-4 min-h-[48px] rounded-xl text-sm sm:text-base font-semibold transition-all duration-300 flex justify-center items-center gap-2 active:scale-[0.99]
                     ${txStatus === 'success' ? 'bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 
                       txStatus === 'error' ? 'bg-red-500 text-white' : 
                       'bg-accent text-accent-foreground hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(0,184,148,0.2)] disabled:hover:scale-100 disabled:opacity-50 disabled:shadow-none'
                     }`}
                 >
                   {txStatus === 'loading' ? (
-                    <><Loader2 size={18} className="animate-spin" /> {txMessage}</>
+                    <><Loader2 size={18} className="animate-spin shrink-0" /> <span className="truncate">{txMessage}</span></>
                   ) : txStatus === 'success' ? (
-                    <><CheckCircle2 size={18} /> Donation Successful</>
+                    <><CheckCircle2 size={18} className="shrink-0" /> Donation Successful</>
                   ) : txStatus === 'error' ? (
-                    <><XCircle size={18} /> Retry Donation</>
+                    <><XCircle size={18} className="shrink-0" /> Retry Donation</>
                   ) : (
                     'Donate Now'
                   )}
                 </button>
 
                 {txStatus === 'error' && (
-                  <div className="text-red-400 text-sm mt-1 text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20">
+                  <div className="text-red-400 text-xs sm:text-sm mt-1 text-center bg-red-500/10 p-2 rounded-lg border border-red-500/20 break-words">
                     {txMessage}
                   </div>
                 )}
@@ -315,24 +326,24 @@ export function DashboardPage() {
             </div>
 
             {/* Live Activity Feed */}
-            <div className="liquid-glass rounded-2xl p-6 shadow-xl backdrop-blur-xl flex flex-col h-[350px]">
-              <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+            <div className="liquid-glass rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col h-[300px] sm:h-[350px]">
+              <div className="flex justify-between items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-white/10">
+                <h2 className="text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
                   <Activity size={16} /> Activity Feed
                 </h2>
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-widest bg-accent/10 px-2 py-1 rounded-md border border-accent/20">
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-widest bg-accent/10 px-2 py-0.5 sm:py-1 rounded-md border border-accent/20">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
                   Live
                 </div>
               </div>
               
-              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 relative">
+              <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2 sm:space-y-3 relative">
                 {!campaign ? (
                   <div className="absolute inset-0 flex flex-col gap-3">
                      {[1,2,3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse w-full"></div>)}
                   </div>
                 ) : displayedDonations.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60">
+                  <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60 text-sm">
                     <Activity size={32} className="mb-2 opacity-50" />
                     <p>No activity yet.</p>
                   </div>
@@ -344,23 +355,23 @@ export function DashboardPage() {
                     return (
                       <div 
                         key={event.id} 
-                        className="p-3.5 border-y border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors animate-in slide-in-from-top-2 fade-in duration-300"
+                        className="p-2.5 sm:p-3.5 border-y border-white/5 flex items-center justify-between hover:bg-white/5 transition-colors animate-in slide-in-from-top-2 fade-in duration-300 text-xs sm:text-sm"
                         style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
                       >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-white/10 flex items-center justify-center font-mono text-xs text-muted-foreground shrink-0 border border-white/10">
+                        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+                          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full bg-white/10 flex items-center justify-center font-mono text-[11px] sm:text-xs text-muted-foreground shrink-0 border border-white/10">
                             {event.donor.slice(0,2)}
                           </div>
-                          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2">
-                            <span className="font-mono text-sm text-white/90">{event.donor.slice(0, 6)}...{event.donor.slice(-4)}</span>
-                            <span className="text-muted-foreground text-sm hidden sm:inline">donated</span>
+                          <div className="flex flex-col sm:flex-row sm:items-center sm:gap-2 min-w-0">
+                            <span className="font-mono text-xs sm:text-sm text-white/90 truncate">{event.donor.slice(0, 5)}...{event.donor.slice(-4)}</span>
+                            <span className="text-muted-foreground text-xs hidden sm:inline">donated</span>
                             <div className="flex items-center gap-1.5">
-                              <strong className="text-white font-mono bg-white/10 px-1.5 py-0.5 rounded text-sm">{event.amount} XLM</strong>
+                              <strong className="text-white font-mono bg-white/10 px-1.5 py-0.5 rounded text-xs sm:text-sm">{event.amount} XLM</strong>
                               {isTopSupporter && <span title="Top Supporter Badge Earned">🏅</span>}
                             </div>
                           </div>
                         </div>
-                        <span className="text-xs text-muted-foreground font-medium shrink-0 ml-2">
+                        <span className="text-[11px] sm:text-xs text-muted-foreground font-medium shrink-0 ml-2">
                           {timeAgo < 1 ? 'Just now' : `${timeAgo}m ago`}
                         </span>
                       </div>

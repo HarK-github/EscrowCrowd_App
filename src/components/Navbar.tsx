@@ -9,8 +9,8 @@ export function Navbar() {
   const isDashboard = location.pathname === '/dashboard';
 
   return (
-    <nav className="px-8 md:px-28 py-4 flex items-center justify-between z-50 relative">
-      <div className="flex items-center gap-12 md:gap-20">
+    <nav className="px-4 sm:px-8 md:px-28 py-4 flex items-center justify-between z-50 relative">
+      <div className="flex items-center gap-6 sm:gap-12 md:gap-20">
         <Link to="/" className="flex items-center gap-3">
           <span className="text-xl font-bold tracking-tight">EscrowCrowd</span>
         </Link>

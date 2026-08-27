@@ -21,14 +21,14 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <ToastContext.Provider value={{ toast }}>
       {children}
-      <div className="fixed bottom-4 right-4 z-[9999] flex flex-col gap-2">
+      <div className="fixed bottom-4 right-4 left-4 sm:left-auto max-w-[calc(100vw-2rem)] sm:max-w-sm z-[9999] flex flex-col gap-2 pointer-events-none">
         {toasts.map((t) => (
           <div
             key={t.id}
-            className={`px-4 py-3 rounded-lg shadow-xl border backdrop-blur-md animate-in slide-in-from-bottom-5 fade-in duration-300 text-sm font-medium ${
-              t.type === 'success' ? 'bg-green-500/20 border-green-500/30 text-green-100' :
-              t.type === 'error' ? 'bg-red-500/20 border-red-500/30 text-red-100' :
-              'bg-white/10 border-white/20 text-white'
+            className={`pointer-events-auto px-4 py-3 rounded-xl shadow-2xl border backdrop-blur-md animate-in slide-in-from-bottom-5 fade-in duration-300 text-sm font-medium break-words ${
+              t.type === 'success' ? 'bg-emerald-950/80 border-emerald-500/40 text-emerald-100 shadow-emerald-950/50' :
+              t.type === 'error' ? 'bg-red-950/80 border-red-500/40 text-red-100 shadow-red-950/50' :
+              'bg-neutral-900/90 border-white/20 text-white'
             }`}
           >
             {t.message}
