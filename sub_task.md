@@ -297,9 +297,15 @@ This directly serves two things at once: your ask for visibility, and it's genui
 
 ## Phase 13: Documentation & Demo (Days 9–11)
 
-*(unchanged, with one addition)*
+**Files Changed / Created:**
+- `README.md` (comprehensive architecture, inter-contract tradeoff rationale, contract transparency panel, test instructions, and Freelancer Escrow Network relationship narrative)
 
-- [ ] Add a short **"Relationship to Freelancer Escrow Network"** section in the README — 3–4 sentences explaining that this crowdfunding dApp is a scoped implementation of the trust-and-transparency pattern from your larger escrow project, built within this challenge's approved-concepts constraint. This is a legitimate, honest way to connect the two in your resume narrative without pretending the bounty submission *is* the escrow network.
+**Tasks:**
+- [x] Add a short **"Relationship to Freelancer Escrow Network"** section in the README — 3–4 sentences explaining that this crowdfunding dApp is a scoped implementation of the trust-and-transparency pattern from your larger escrow project, built within this challenge's approved-concepts constraint.
+- [x] Document cross-contract error handling rationale (best-effort badge awards preserving core financial pledges).
+- [x] Document On-Chain Contract Transparency Panel and verified testnet transaction proofs.
+- [x] Document CI/CD pipeline, local setup, and test execution procedures.
+- [ ] Add demo video link / final asset recording.
 
 ---
 

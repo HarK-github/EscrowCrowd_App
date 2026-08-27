@@ -1,85 +1,176 @@
-# EscrowCrowd: Decentralized Crowdfunding on Stellar
+# EscrowCrowd: Decentralized Crowdfunding & Escrow on Stellar
 
 [![Vercel Deployment](https://img.shields.io/badge/Vercel-Deployed-black?logo=vercel)](https://escrow-crowd.vercel.app)
 [![Stellar Network](https://img.shields.io/badge/Stellar-Testnet-blue)](https://stellar.org)
 [![CI Pipeline](https://github.com/HarK-github/EscrowCrowd_App/actions/workflows/ci.yml/badge.svg)](https://github.com/HarK-github/EscrowCrowd_App/actions/workflows/ci.yml)
-[![GitHub Repository](https://img.shields.io/badge/GitHub-Repository-black?logo=github)](https://github.com/HarK-github/EscrowCrowd_App)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-EscrowCrowd is a trustless, decentralized crowdfunding platform built on the Stellar network using Soroban smart contracts. It guarantees that funds are only released to project creators if their funding goals are met. If a project fails to reach its goal by the deadline, backers can safely reclaim their XLM. 
+**EscrowCrowd** is a decentralized, trustless crowdfunding and escrow platform built on the **Stellar network** using **Soroban smart contracts**. It guarantees that backer funds are held in transparent, automated escrow and only released to campaign creators when target funding goals are achieved before deadlines. If a campaign fails to reach its goal, backers are guaranteed refunds without intermediaries.
 
+---
 
+## 🌟 Application Preview
 
-![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png) 
+![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png)
 
+---
 
-## Architecture Overview
-The application is purely decentralized and relies on two interlocking smart contracts communicating on-chain:
-1. **CrowdfundContract:** The core escrow vault. It securely holds donated XLM, tracks the campaign goal/deadline, and handles refunds if the goal isn't met.
-2. **RewardBadge Contract:** A separate NFT/badge contract. When a user donates above a certain threshold (e.g., 100 XLM), the `CrowdfundContract` directly invokes the `RewardBadge` contract to instantly mint a "Top Supporter" badge to the donor in a single, atomic transaction.
+## 🏛️ Smart Contract Architecture & Inter-Contract Communication
 
-## Live Deployment
-- **Frontend Vercel Deployment:** [https://escrow-crowd.vercel.app](https://escrow-crowd.vercel.app)
-- **Deployed Crowdfund Contract:** `CANOYAM53C5Q6DNECYVNIQAQN5VI4GMWRXPGQ6CDTHNZBWPBAJ3A7AYA`
-- **Deployed RewardBadge Contract:** `CAA3IZ7SVURXJP5YNZL66BKGKXOJWSP2KRVUJDRXIECGR3KHDGA4WISD`
-- **Example Cross-Contract Transaction (Testnet Explorer):** [515e8f8f...](https://stellar.expert/explorer/testnet/tx/515e8f8f639c581bb97a67feae84a5dae0e5045935d45df19a01be6f5f8a1da5) (Shows a donation that triggered a cross-contract badge award)
+The system is built on two distinct, interlocking Soroban smart contracts operating on the Stellar Testnet:
 
-## Application Screenshots
+1. **CrowdfundContract (`CANOYAM53...7AYA`)**: The core escrow vault. It securely locks contributed XLM, tracks deadline timestamps and goal thresholds, manages donor contribution ledgers, and enables creator withdrawals or automated refunds.
+2. **RewardBadge Contract (`CAA3IZ7SV...WISD`)**: An auxiliary on-chain badge/reputation contract. When a backer contributes $\ge 100\text{ XLM}$, the `CrowdfundContract` directly performs an **inter-contract invocation** to `award_badge()` in the donor's account.
 
-| Feature | Screenshot |
-|---------|------------|
-| **Dashboard Interface** | ![Dashboard](./screenshots/dashboard.png) |
-| **Wallet Selection Options** | ![Wallet Selection](./screenshots/disconnected.png) |
-| **Connecting Wallet** | ![Connecting Wallet](./screenshots/connecting.png) |
-| **Transaction Signature Request** | ![Transaction Popup](./screenshots/transaction_popup1.png) |
-| **Transaction Successful** | ![Transaction Complete](./screenshots/transaction%20complete.png) |
+```
+                  ┌────────────────────────────────────────┐
+                  │           Backer / Donor               │
+                  └──────────────────┬─────────────────────┘
+                                     │ 1. donate(100 XLM)
+                                     ▼
+                  ┌────────────────────────────────────────┐
+                  │          CrowdfundContract             │
+                  │   - Verifies active deadline           │
+                  │   - Holds XLM in trustless escrow      │
+                  │   - Updates contribution state         │
+                  └──────────────────┬─────────────────────┘
+                                     │ 2. Cross-contract call:
+                                     │    award_badge(donor, tier=1)
+                                     ▼
+                  ┌────────────────────────────────────────┐
+                  │         RewardBadge Contract           │
+                  │   - Mints "Top Supporter" Badge        │
+                  │   - Emits badge awarded event          │
+                  └────────────────────────────────────────┘
+```
 
-## Features
-- **Smart Contract Escrow:** Absolute trust. Backers' XLM is locked securely by Soroban.
-- **Real-Time Blockchain Sync:** Live activity feeds powered by Soroban RPC polling.
-- **Automated Refund Protection:** Guaranteed refunds for unmet funding goals.
-- **Stellar Speed:** Near-instant settlement on the Stellar Testnet.
-- **Modern UI:** Glassmorphism, dynamic animations, and fully responsive bento grid layouts.
+### ⚖️ Critical Design Decision: Cross-Contract Error Handling
+> **Tradeoff Rationale:** In `CrowdfundContract::donate()`, the cross-contract call to `RewardBadge` is wrapped using `env.try_invoke_contract()`. If the badge contract runs out of gas, is upgraded, or fails, the core donation **does not roll back**.
+> 
+> *Financial integrity is prioritized over ancillary gamification:* a donor's financial pledge must succeed reliably even if non-critical reward metadata encounters transient issues.
 
-## Local Setup Instructions
+---
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/HarK-github/EscrowCrowd_App.git
-   cd EscrowCrowd_App
-   ```
+## 🔗 Relationship to Freelancer Escrow Network
 
-2. **Install dependencies**
-   ```bash
-   npm install
-   ```
+This crowdfunding dApp serves as a concrete, production-ready implementation of the core **trust-and-transparency escrow pattern** designed for our larger **Freelancer Escrow Network** architecture. By enforcing decentralized escrow custody, multi-wallet authentication, and cross-contract event verification within Soroban, EscrowCrowd demonstrates the foundational building blocks required for milestone-gated freelance payments and decentralized reputation tracking on Stellar.
 
-3. **Configure Environment**
-   Copy `.env.example` to `.env` and fill in your deployed `VITE_CONTRACT_ID`.
-   ```bash
-   cp .env.example .env
-   ```
+---
 
-4. **Run the local development server**
-   ```bash
-   npm run dev
-   ```
-   Open `http://localhost:5173` in your browser.
+## 🔍 On-Chain Contract Transparency Panel
 
-5. **Prerequisites for Testing**
-   - Install a Stellar-compatible wallet browser extension (e.g., [Freighter Wallet](https://www.freighter.app/)).
-   - Switch the wallet to the **Stellar Testnet**.
-   - Fund your wallet using the [Stellar Laboratory Friendbot](https://laboratory.stellar.org/#account-creator).
+EscrowCrowd includes an integrated **Contract Transparency Panel** directly in the UI (available on both the Landing page and Dashboard):
 
-## Running Tests
-This project includes full end-to-end and unit testing for both the smart contracts and the React frontend.
+- **Live Ledger Sequence Pulse:** Real-time synchronization displaying the latest Stellar Testnet ledger sequence via Soroban RPC.
+- **Direct Explorer Links:** One-click navigation to verified contract addresses on [Stellar Expert Explorer](https://stellar.expert).
+- **Verified Transaction Proofs:** Live links to the deployment transaction and on-chain cross-contract execution proofs.
+- **One-Click Address Copy:** Instant clipboard copy with visual confirmation feedback.
 
-**To test the smart contracts (Rust):**
+### Verified Testnet Deployments & Proofs
+
+| Contract / Action | Address / Transaction Hash | Explorer Link |
+|---|---|---|
+| **Crowdfund Escrow Contract** | `CANOYAM53C5Q6DNECYVNIQAQN5VI4GMWRXPGQ6CDTHNZBWPBAJ3A7AYA` | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CANOYAM53C5Q6DNECYVNIQAQN5VI4GMWRXPGQ6CDTHNZBWPBAJ3A7AYA) |
+| **RewardBadge Contract** | `CAA3IZ7SVURXJP5YNZL66BKGKXOJWSP2KRVUJDRXIECGR3KHDGA4WISD` | [View on Stellar Expert](https://stellar.expert/explorer/testnet/contract/CAA3IZ7SVURXJP5YNZL66BKGKXOJWSP2KRVUJDRXIECGR3KHDGA4WISD) |
+| **Deployment Transaction** | `93e4b3b2fc78ef5bfd1bf4cd31364c0f1c1cf63cb3164767c9c547780957168a` | [View Deployment Tx](https://stellar.expert/explorer/testnet/tx/93e4b3b2fc78ef5bfd1bf4cd31364c0f1c1cf63cb3164767c9c547780957168a) |
+| **Cross-Contract Proof Tx** | `515e8f8f639c581bb97a67feae84a5dae0e5045935d45df19a01be6f5f8a1da5` | [View Cross-Contract Tx](https://stellar.expert/explorer/testnet/tx/515e8f8f639c581bb97a67feae84a5dae0e5045935d45df19a01be6f5f8a1da5) |
+
+---
+
+## 🛡️ Production Hardening & Reliability Features
+
+1. **Transaction State Machine & In-Flight Click Guard:**
+   - Centralized state machine (`idle` → `preparing` → `signing` → `confirming` → `success` / `error`).
+   - `isSubmitting` click-guard with guaranteed `finally` release block to prevent accidental double-signing while ensuring buttons never remain locked after a rejection.
+2. **Cursor-Based Event Pagination & Scoped Backoff:**
+   - Event queries track `lastCheckedLedger + 1` to eliminate duplicate event fetching.
+   - Background polling applies exponential backoff on network failures ($5\text{s} \to 10\text{s} \to 20\text{s} \to 30\text{s}$ ceiling) and resets immediately on recovery.
+   - Financial transactions (`donate()`) are **never silently retried**.
+3. **Comprehensive Client-Side Validation:**
+   - Rejects non-numeric, zero, or negative inputs with inline feedback.
+   - Real-time wallet balance validation disabling submission before any transaction is built.
+4. **Mobile Responsive Layout:**
+   - Stacking order optimized for mobile: Donate Form placed at the top (`order-first md:order-none`), 48px touch targets, mobile wallet pill, and responsive toasts down to 320px viewport width.
+
+---
+
+## ⚠️ Handled Error Scenarios
+
+1. **Wallet Not Installed:** Detects missing extensions (Freighter, Albedo, xBull) and renders an actionable installation banner.
+2. **Connection Rejected:** Catches user dismissal gracefully without crashing state and displays a non-blocking toast.
+3. **Insufficient Balance:** Compares donation input against active account balance in real-time, blocking submission with a clear explanation.
+
+---
+
+## ⚙️ Continuous Integration (CI/CD)
+
+The repository includes a comprehensive GitHub Actions workflow (`.github/workflows/ci.yml`) validating every commit:
+- **Rust Toolchain:** Pinned to `1.81.0` with `wasm32-unknown-unknown` target.
+- **Contract Compilation & Tests:** `cargo build --target wasm32-unknown-unknown --release` and `cargo test` (5 smart contract unit tests).
+- **Frontend Quality Assurance:** `oxlint` linting, Vitest unit test suite (5 frontend tests), and Vite production bundle compilation.
+
+---
+
+## 🚀 Local Development Setup
+
+### 1. Prerequisites
+- [Node.js](https://nodejs.org/) (v18 or v20)
+- [Rust](https://rustup.rs/) (v1.81.0 recommended) with `wasm32-unknown-unknown` target:
+  ```bash
+  rustup target add wasm32-unknown-unknown
+  ```
+- A Stellar wallet extension (e.g. [Freighter](https://www.freighter.app/)) set to **Stellar Testnet**.
+- Testnet XLM funded via [Stellar Friendbot](https://laboratory.stellar.org/#account-creator).
+
+### 2. Installation
+```bash
+git clone https://github.com/HarK-github/EscrowCrowd_App.git
+cd EscrowCrowd_App
+npm install
+```
+
+### 3. Environment Configuration
+Copy the example environment file:
+```bash
+cp .env.example .env
+```
+Ensure `.env` contains the required testnet configurations:
+```ini
+VITE_CROWDFUND_CONTRACT_ID=CANOYAM53C5Q6DNECYVNIQAQN5VI4GMWRXPGQ6CDTHNZBWPBAJ3A7AYA
+VITE_REWARD_BADGE_CONTRACT_ID=CAA3IZ7SVURXJP5YNZL66BKGKXOJWSP2KRVUJDRXIECGR3KHDGA4WISD
+VITE_HORIZON_URL=https://horizon-testnet.stellar.org
+VITE_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
+VITE_STELLAR_NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+```
+
+### 4. Run Development Server
+```bash
+npm run dev
+```
+Navigate to `http://localhost:5173`.
+
+---
+
+## 🧪 Running Tests
+
+### Smart Contract Unit Tests (Rust)
 ```bash
 cd contracts
 cargo test
 ```
 
-**To test the frontend UI (Vitest):**
+### Frontend Unit & Component Tests (Vitest)
 ```bash
 npm run test
 ```
+
+### Linting & Production Build
+```bash
+npm run lint
+npm run build
+```
+
+---
+
+## 📄 License
+This project is licensed under the [MIT License](LICENSE).
