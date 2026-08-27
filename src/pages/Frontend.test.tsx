@@ -153,6 +153,7 @@ describe('Frontend Tests', () => {
       recentDonations: [],
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
+      addDonationEvent: vi.fn(),
     });
 
     render(
@@ -171,6 +172,64 @@ describe('Frontend Tests', () => {
     const submitButton = screen.getByRole('button', { name: /Donate Now/i });
     expect(submitButton).toBeDisabled();
   });
+
+  test('activity feed and my transactions render donations and subtitles correctly', () => {
+    const mockDonations = [
+      {
+        id: 'tx123456789012',
+        donor: 'GABC1234567890',
+        amount: 25,
+        timestamp: new Date().toISOString(),
+      },
+      {
+        id: 'tx987654321098',
+        donor: 'GOTHERDONOR999',
+        amount: 100,
+        timestamp: new Date().toISOString(),
+      }
+    ];
+
+    (UseStellarModule.useStellar as vi.Mock).mockReturnValue({
+      pubKey: 'GABC1234567890',
+      balance: '100',
+      campaign: {
+        creator: 'GXYZ',
+        deadline: Date.now() / 1000 + 3600,
+        goal: 1000,
+        status: 'active',
+        token: 'XLM',
+        totalRaised: 125,
+      },
+      recentDonations: mockDonations,
+      fetchBalance: vi.fn(),
+      fetchCampaignState: vi.fn(),
+      addDonationEvent: vi.fn(),
+    });
+
+    render(
+      <BrowserRouter>
+        <DashboardPage />
+      </BrowserRouter>
+    );
+
+    // Verify distinct subtitles
+    expect(screen.getByText('Live stream of all public contributions across Stellar')).toBeInTheDocument();
+    expect(screen.getByText('Contributions sent from your connected wallet')).toBeInTheDocument();
+
+    // Verify public Activity Feed contains both
+    expect(screen.getAllByText('25 XLM').length).toBeGreaterThanOrEqual(1);
+    expect(screen.getAllByText('100 XLM').length).toBeGreaterThanOrEqual(1);
+
+    // Verify My Transactions sidebar renders the connected user's transaction ID
+    expect(screen.getByText('Tx ID: tx1234567890...')).toBeInTheDocument();
+
+    // Verify quick preset buttons
+    const preset50Btn = screen.getByRole('button', { name: /50 XLM/i });
+    fireEvent.click(preset50Btn);
+    const input = screen.getByPlaceholderText('10') as HTMLInputElement;
+    expect(input.value).toBe('50');
+  });
 });
+
 
 

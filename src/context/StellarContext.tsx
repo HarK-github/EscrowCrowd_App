@@ -32,6 +32,7 @@ interface StellarContextType {
   disconnectWallet: () => void;
   fetchBalance: (publicKey: string) => Promise<void>;
   fetchCampaignState: () => Promise<void>;
+  addDonationEvent: (event: DonationEvent) => void;
 }
 
 export const StellarContext = createContext<StellarContextType | undefined>(undefined);
@@ -175,9 +176,17 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const addDonationEvent = useCallback((event: DonationEvent) => {
+    setRecentDonations((prev) => {
+      const exists = prev.some((d) => d.id === event.id);
+      if (exists) return prev;
+      return [event, ...prev];
+    });
+  }, []);
+
   return (
     <StellarContext.Provider value={{
-      pubKey, balance, isConnecting, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState
+      pubKey, balance, isConnecting, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent
     }}>
       {children}
     </StellarContext.Provider>

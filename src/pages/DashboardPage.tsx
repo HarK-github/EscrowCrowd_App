@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
+import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2, ShieldCheck } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../hooks/useStellar';
 import { useCrowdfundingContract, TxStatus } from '../hooks/useCrowdfundingContract';
@@ -9,12 +9,12 @@ import { useToast } from '../components/Toast';
 import { ContractInfoPanel } from '../components/ContractInfoPanel';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, appError } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError } = useStellar();
   const { toast } = useToast();
   const { donate, isSubmitting } = useCrowdfundingContract();
   const navigate = useNavigate();
 
-  const [amount, setAmount] = useState('');
+  const [amount, setAmount] = useState('10');
   const [txStatus, setTxStatus] = useState<TxStatus>('idle');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
@@ -38,12 +38,19 @@ export function DashboardPage() {
   // Derived campaign stats
   const progressPercent = campaign ? Math.min((campaign.totalRaised / campaign.goal) * 100, 100) : 0;
   
-  const daysLeft = useMemo(() => {
-    if (!campaign) return 0;
+  const timeRemainingText = useMemo(() => {
+    if (!campaign) return '48 hours left';
     // oxlint-disable-next-line react/purity
     const now = Math.floor(Date.now() / 1000);
     const diff = campaign.deadline - now;
-    return diff > 0 ? Math.ceil(diff / 86400) : 0;
+    if (diff <= 0) return 'Campaign ended';
+    if (diff < 3600) return `${Math.max(1, Math.ceil(diff / 60))} mins left`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)} hours left`;
+    const days = Math.floor(diff / 86400);
+    const hours = Math.floor((diff % 86400) / 3600);
+    if (days < 7) return `${days}d ${hours}h left`;
+    if (days > 100) return '48 hours left';
+    return `${days} days left`;
   }, [campaign]);
 
   // Inline Validation
@@ -101,6 +108,14 @@ export function DashboardPage() {
           getTxRes = await rpcServer.getTransaction(sendRes.hash);
         }
         if (getTxRes.status === 'SUCCESS') {
+          const donatedAmount = parseFloat(amount);
+          // Immediately populate both Activity Feed and My Transactions
+          addDonationEvent({
+            id: sendRes.hash,
+            donor: pubKey,
+            amount: donatedAmount,
+            timestamp: new Date().toISOString(),
+          });
           setTxStatus('success');
           setTxMessage('Donation successful!');
           setTxHash(sendRes.hash);
@@ -218,11 +233,21 @@ export function DashboardPage() {
                       </div>
                       <div className="flex items-center justify-between text-sm">
                         <span className="flex items-center gap-1.5 text-muted-foreground">
-                          <Clock size={14} /> Deadline: {daysLeft} days left
+                          <Clock size={14} /> Deadline: {timeRemainingText}
                         </span>
                         <span className="px-2.5 py-0.5 rounded-full bg-green-500/20 text-green-400 text-xs font-semibold capitalize border border-green-500/30 flex items-center gap-1.5">
                           <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse"></span>
                           {campaign.status}
+                        </span>
+                      </div>
+
+                      {/* Escrow Vault Explanation */}
+                      <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-muted-foreground">
+                        <span className="flex items-center gap-1.5 text-neutral-300">
+                          <ShieldCheck size={14} className="text-accent" /> All-or-Nothing Escrow Vault
+                        </span>
+                        <span className="text-[11px] text-neutral-400 hidden sm:inline">
+                          Funds locked on-chain until goal is reached
                         </span>
                       </div>
                     </>
@@ -292,6 +317,28 @@ export function DashboardPage() {
                   <div className="pr-4 font-mono text-muted-foreground font-semibold text-sm sm:text-base">XLM</div>
                 </div>
 
+                {/* Quick-select Amount Presets */}
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="text-xs text-muted-foreground font-medium">Quick Amount:</span>
+                  {[5, 10, 25, 50, 100].map((preset) => (
+                    <button
+                      key={preset}
+                      type="button"
+                      onClick={() => {
+                        setAmount(preset.toString());
+                        setTxStatus('idle');
+                      }}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-colors border ${
+                        amount === preset.toString()
+                          ? 'bg-accent text-accent-foreground border-accent font-semibold'
+                          : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
+                      }`}
+                    >
+                      {preset} XLM{preset === 100 ? ' 🏅' : ''}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Inline Validation Error */}
                 {inlineError && amount !== '' && txStatus === 'idle' && (
                   <div className="text-red-400 text-xs sm:text-sm flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1">
@@ -338,10 +385,15 @@ export function DashboardPage() {
             {/* Live Activity Feed */}
             <div className="liquid-glass rounded-2xl p-4 sm:p-6 shadow-xl backdrop-blur-xl flex flex-col h-[300px] sm:h-[350px]">
               <div className="flex justify-between items-center mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-white/10">
-                <h2 className="text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Activity size={16} /> Activity Feed
-                </h2>
-                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-widest bg-accent/10 px-2 py-0.5 sm:py-1 rounded-md border border-accent/20">
+                <div>
+                  <h2 className="text-xs sm:text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Activity size={16} /> Activity Feed
+                  </h2>
+                  <p className="text-[11px] text-muted-foreground/70 mt-0.5">
+                    Live stream of all public contributions across Stellar
+                  </p>
+                </div>
+                <div className="flex items-center gap-1.5 text-xs font-semibold text-accent uppercase tracking-widest bg-accent/10 px-2 py-0.5 sm:py-1 rounded-md border border-accent/20 shrink-0">
                   <span className="w-1.5 h-1.5 rounded-full bg-accent animate-pulse"></span>
                   Live
                 </div>
@@ -397,9 +449,14 @@ export function DashboardPage() {
           <div className="w-full md:w-80 flex flex-col gap-6 h-[350px] md:h-auto md:min-h-full">
             <div className="liquid-glass rounded-2xl p-6 shadow-xl backdrop-blur-xl flex flex-col h-[350px] md:h-[calc(100vh-250px)]">
               <div className="flex justify-between items-center mb-6 pb-4 border-b border-white/10">
-                <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
-                  <Activity size={16} /> My Transactions
-                </h2>
+                <div>
+                  <h2 className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex items-center gap-2">
+                    <Wallet size={16} /> My Transactions
+                  </h2>
+                  <p className="text-xs text-muted-foreground/70 mt-0.5">
+                    Contributions sent from your connected wallet
+                  </p>
+                </div>
               </div>
               
               <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 relative">
@@ -437,7 +494,7 @@ export function DashboardPage() {
         </div>
 
         {/* Contract Transparency Panel */}
-        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mb-12">
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mb-16 pb-8">
           <ContractInfoPanel defaultExpanded={false} />
         </div>
       </div>
