@@ -204,9 +204,14 @@ Add a second contract that talks to your existing crowdfunding contract — this
 
 **Goal:** Make both contracts' info directly visible in the UI, not just buried in the README.
 
-**Files to create:**
-- `src/components/ContractInfoPanel.tsx`
-- `src/config/contracts.ts` (centralizes both contract addresses + explorer links, sourced from `.env`)
+**Files Changed / Created:**
+- `src/components/ContractInfoPanel.tsx` (NEW — component for contract transparency, copy buttons, explorer links, and live ledger polling)
+- `src/config/contracts.ts` (NEW — centralizes both contract addresses, verified tx hashes, explorer URL helpers)
+- `src/config.ts` (re-exports centralized contracts configuration)
+- `src/pages/LandingPage.tsx` (integrated ContractInfoPanel above footer)
+- `src/pages/DashboardPage.tsx` (integrated ContractInfoPanel and cleaned up linter warnings)
+- `src/components/Toast.tsx` (added eslint-disable for fast-refresh)
+- `src/pages/Frontend.test.tsx` (added ContractInfoPanel rendering and expansion unit tests)
 
 **Tasks:**
 - [x] Build a collapsible/footer panel showing:
@@ -227,8 +232,8 @@ This directly serves two things at once: your ask for visibility, and it's genui
 
 **Goal:** Automated pipeline running on every push, screenshot of it passing — required submission asset.
 
-**Files to create / update:**
-- `.github/workflows/ci.yml`
+**Files Changed / Created:**
+- `.github/workflows/ci.yml` (multi-stage GitHub Actions pipeline with Rust 1.81.0, wasm32 target, Cargo caching, contract test, frontend test, lint, and build)
 
 **Tasks:**
 - [x] Pipeline stages: install deps → build Soroban contract → run contract tests → run frontend tests → lint/typecheck → build frontend for production
