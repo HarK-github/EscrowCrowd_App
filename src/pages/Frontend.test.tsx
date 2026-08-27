@@ -113,4 +113,29 @@ describe('Frontend Tests', () => {
     // Check if the progress bar renders the correct text
     expect(screen.getByText((content, element) => element.textContent === '75 / 100 XLM')).toBeInTheDocument();
   });
+
+  test('ContractInfoPanel renders and expands with contract verification details', () => {
+    (UseStellarModule.useStellar as vi.Mock).mockReturnValue({
+      pubKey: '',
+      appError: '',
+      connectWallet: vi.fn(),
+    });
+
+    render(
+      <BrowserRouter>
+        <LandingPage />
+      </BrowserRouter>
+    );
+
+    const toggleButton = screen.getByRole('button', { name: /Toggle contract transparency panel/i });
+    expect(toggleButton).toBeInTheDocument();
+
+    // Expand the panel
+    fireEvent.click(toggleButton);
+
+    expect(screen.getByText('Crowdfund Escrow Contract')).toBeInTheDocument();
+    expect(screen.getByText('RewardBadge Contract')).toBeInTheDocument();
+    expect(screen.getByText('Cross-Contract Proof Tx:')).toBeInTheDocument();
+  });
 });
+

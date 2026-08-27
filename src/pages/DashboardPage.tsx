@@ -4,10 +4,9 @@ import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../hooks/useStellar';
 import { useCrowdfundingContract } from '../hooks/useCrowdfundingContract';
 import noLoopAnim from '../assets/noloopanim.mp4';
-import { CONTRACT_ID, NETWORK_PASSPHRASE, server, rpcServer } from '../config';
-import { TransactionBuilder, Contract, nativeToScVal, rpc } from "@stellar/stellar-sdk";
-import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
+import { rpcServer } from '../config';
 import { useToast } from '../components/Toast';
+import { ContractInfoPanel } from '../components/ContractInfoPanel';
 
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, appError } = useStellar();
@@ -19,7 +18,6 @@ export function DashboardPage() {
   const [txStatus, setTxStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
-  const [filterMode, setFilterMode] = useState<"all" | "mine">("all");
 
   useEffect(() => {
     if (!pubKey) {
@@ -31,12 +29,7 @@ export function DashboardPage() {
     return recentDonations.filter(d => d.donor === pubKey);
   }, [recentDonations, pubKey]);
 
-  const displayedDonations = useMemo(() => {
-    if (filterMode === "mine") {
-      return recentDonations.filter(d => d.donor === pubKey);
-    }
-    return recentDonations;
-  }, [recentDonations, filterMode, pubKey]);
+  const displayedDonations = recentDonations;
 
   const hasBadge = useMemo(() => {
     return recentDonations.some(d => d.donor === pubKey && parseFloat(d.amount.toString()) >= 100);
@@ -47,6 +40,7 @@ export function DashboardPage() {
   
   const daysLeft = useMemo(() => {
     if (!campaign) return 0;
+    // oxlint-disable-next-line react/purity
     const now = Math.floor(Date.now() / 1000);
     const diff = campaign.deadline - now;
     return diff > 0 ? Math.ceil(diff / 86400) : 0;
@@ -392,12 +386,12 @@ export function DashboardPage() {
                   <div className="absolute inset-0 flex flex-col gap-3">
                      {[1,2,3].map(i => <div key={i} className="h-12 bg-white/5 rounded-lg animate-pulse w-full"></div>)}
                   </div>
-                ) : displayedDonations.filter(d => d.donor === pubKey).length === 0 ? (
+                ) : myTransactions.length === 0 ? (
                   <div className="flex flex-col items-center justify-center h-full text-muted-foreground opacity-60">
                     <p>No transactions yet.</p>
                   </div>
                 ) : (
-                  displayedDonations.filter(d => d.donor === pubKey).map((event, idx) => {
+                  myTransactions.map((event, idx) => {
                     const timeAgo = Math.floor((new Date().getTime() - new Date(event.timestamp).getTime()) / 60000);
                     return (
                       <div 
@@ -419,6 +413,11 @@ export function DashboardPage() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* Contract Transparency Panel */}
+        <div className="max-w-5xl mx-auto w-full px-4 sm:px-6 lg:px-8 mb-12">
+          <ContractInfoPanel defaultExpanded={false} />
         </div>
       </div>
     </div>

@@ -8,6 +8,7 @@ import glassAnim from '../assets/glassanim.mp4';
 import demoPic from '../assets/Stellar-dApp-front.png';
 import { Navbar } from '../components/Navbar';
 import { Features } from '../components/Features';
+import { ContractInfoPanel } from '../components/ContractInfoPanel';
 
 export function LandingPage() {
   const { pubKey, connectWallet, appError, isConnecting } = useStellar();
@@ -101,6 +102,10 @@ export function LandingPage() {
       </section>
 
       <Features />
+
+      <div className="px-4 py-8 relative z-40">
+        <ContractInfoPanel defaultExpanded={false} />
+      </div>
 
       <footer className="relative z-40 border-t border-white/10 bg-black/40 backdrop-blur-md py-12">
         <div className="max-w-7xl mx-auto px-8 flex flex-col md:flex-row items-center justify-between gap-6">
