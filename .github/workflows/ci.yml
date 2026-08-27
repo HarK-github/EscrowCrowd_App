@@ -1,4 +1,4 @@
-name: EscrowCrowd CI
+name: EscrowCrowd CI Pipeline
 
 on:
   push:
@@ -9,20 +9,19 @@ on:
 jobs:
   build-and-test:
     runs-on: ubuntu-latest
-    
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v3
 
-      - name: Set up Rust
-        uses: actions-rs/toolchain@v1
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Rust Toolchain
+        uses: dtolnay/rust-toolchain@master
         with:
           toolchain: 1.81.0
-          target: wasm32-unknown-unknown
-          override: true
-          
-      - name: Cache Cargo registry
-        uses: actions/cache@v3
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Cargo Dependencies
+        uses: actions/cache@v4
         with:
           path: |
             ~/.cargo/registry
@@ -32,18 +31,18 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build Smart Contracts
+      - name: Build Smart Contracts (WASM Target)
         run: |
           cd contracts
           cargo build --target wasm32-unknown-unknown --release
 
-      - name: Test Smart Contracts
+      - name: Run Smart Contract Unit Tests
         run: |
           cd contracts
           cargo test
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v3
+      - name: Set up Node.js Environment
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
           cache: 'npm'
@@ -51,8 +50,11 @@ jobs:
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Build Frontend
-        run: npm run build
+      - name: Run Linter & Static Analysis
+        run: npm run lint
 
-      - name: Test Frontend
+      - name: Run Frontend Vitest Test Suite
         run: npm run test
+
+      - name: Build Frontend Production Bundle
+        run: npm run build

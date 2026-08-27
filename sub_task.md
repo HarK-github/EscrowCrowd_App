@@ -225,18 +225,16 @@ This directly serves two things at once: your ask for visibility, and it's genui
 
 ## Phase 9: CI/CD Pipeline (Days 3–5)
 
-Goal: Automated pipeline running on every push, screenshot of it passing — required submission asset.
+**Goal:** Automated pipeline running on every push, screenshot of it passing — required submission asset.
 
-Files to create:
+**Files to create / update:**
+- `.github/workflows/ci.yml`
 
-.github/workflows/ci.yml
-
-Tasks:
-
- Pipeline stages: install deps → build Soroban contract → run contract tests → run frontend tests → lint/typecheck → build frontend for production
- Push a commit, confirm pipeline runs green end-to-end
- Screenshot the passing GitHub Actions run
- Commit checkpoint: "Add CI pipeline with build, lint, and test stages"
+**Tasks:**
+- [x] Pipeline stages: install deps → build Soroban contract → run contract tests → run frontend tests → lint/typecheck → build frontend for production
+- [x] Push a commit, confirm pipeline runs green end-to-end
+- [x] Screenshot the passing GitHub Actions run
+- [x] **Commit checkpoint:** "Add CI pipeline with build, lint, and test stages"
 ---
 
 ## Phase 10: Mobile Responsive + Error/Loading Polish (Days 5–7)
