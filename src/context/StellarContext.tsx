@@ -1,12 +1,17 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState, useEffect, ReactNode } from "react";
+import React, { createContext, useState, useEffect, ReactNode, useCallback } from "react";
 import { StellarWalletsKit, Networks } from '@creit.tech/stellar-wallets-kit';
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
-import { TransactionBuilder, Contract, rpc, scValToNative, Account, Keypair } from "@stellar/stellar-sdk";
-import { CONTRACT_ID, rpcServer, server, NETWORK_PASSPHRASE } from '../config';
+import { rpcServer, server } from '../config';
 import { useToast } from '../components/Toast';
+import {
+  fetchCampaignStateData,
+  fetchRecentEventsData,
+  CampaignState,
+  DonationEvent,
+} from '../hooks/useCrowdfundingContract';
 
 StellarWalletsKit.init({
   network: Networks.TESTNET,
@@ -14,21 +19,7 @@ StellarWalletsKit.init({
   modules: [new FreighterModule(), new AlbedoModule(), new xBullModule()],
 });
 
-export interface CampaignState {
-  creator: string;
-  deadline: number;
-  goal: number;
-  status: string;
-  token: string;
-  totalRaised: number;
-}
-
-export interface DonationEvent {
-  id: string;
-  donor: string;
-  amount: number;
-  timestamp: string;
-}
+export type { CampaignState, DonationEvent };
 
 interface StellarContextType {
   isConnecting: boolean;
@@ -54,129 +45,74 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [recentDonations, setRecentDonations] = useState<DonationEvent[]>([]);
 
-  const fetchCampaignState = async () => {
+  const fetchCampaignState = useCallback(async () => {
     try {
-      const dummyAccount = new Account(Keypair.random().publicKey(), '0');
-      const contract = new Contract(CONTRACT_ID);
-      const tx = new TransactionBuilder(dummyAccount, { fee: '100', networkPassphrase: NETWORK_PASSPHRASE })
-        .addOperation(contract.call('get_campaign_state'))
-        .setTimeout(30)
-        .build();
-
-      const response = await rpcServer.simulateTransaction(tx);
-      if (rpc.Api.isSimulationError(response)) {
-        console.error("Simulation error:", response.error);
-        return;
-      }
-      if (rpc.Api.isSimulationSuccess(response)) {
-        const resultVal = response.result.retval;
-        const state = scValToNative(resultVal);
-
-        setCampaign({
-          creator: state.creator,
-          deadline: Number(state.deadline),
-          goal: Number(state.goal) / 10000000,
-          status: state.status,
-          token: state.token,
-          totalRaised: Number(state.total_raised) / 10000000,
-        });
+      const state = await fetchCampaignStateData();
+      if (state) {
+        setCampaign(state);
       }
     } catch (e) {
       console.error("Failed to fetch campaign state:", e);
     }
-  };
+  }, []);
 
-  const fetchRecentEvents = async (startLedger: number) => {
+  const fetchRecentEvents = useCallback(async (startLedger: number) => {
     try {
-      const eventsRes = await rpcServer.getEvents({
-        startLedger,
-        filters: [
-          {
-            type: 'contract',
-            contractIds: [CONTRACT_ID],
-          },
-        ],
-        limit: 100,
-      });
-
-      if (eventsRes && eventsRes.events) {
-        const parsedEvents = eventsRes.events
-          .filter((e) => e.type === 'contract' && e.inSuccessfulContractCall)
-          .map((e) => {
-            try {
-              const topic0 = scValToNative(e.topic[0]);
-              if (topic0 === 'donate') {
-                const donor = scValToNative(e.topic[1]);
-                const amountStroops = scValToNative(e.value);
-                const amount = Number(amountStroops) / 10000000;
-                return {
-                  id: e.id,
-                  donor: donor.toString(),
-                  amount,
-                  timestamp: e.ledgerClosedAt,
-                };
-              }
-            } catch (err) {
-              console.error("Error parsing event", err);
-            }
-            return null;
-          })
-          .filter(Boolean) as DonationEvent[];
-
-        if (parsedEvents.length > 0) {
-          setRecentDonations((prev) => {
-            const combined = [...parsedEvents.reverse(), ...prev];
-            // Deduplicate by id
-            const unique = combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-            return unique;
-          });
-        }
+      const result = await fetchRecentEventsData(startLedger);
+      if (result && result.events && result.events.length > 0) {
+        setRecentDonations((prev) => {
+          const combined = [...result.events.reverse(), ...prev];
+          // Deduplicate by id
+          return combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+        });
         return true;
       }
+      return false;
     } catch (e: any) {
       console.error("Failed to fetch events:", e?.message || e);
       return false;
     }
-  };
+  }, []);
 
+  // Polling with scoped exponential backoff and cursor tracking
   useEffect(() => {
-    // eslint-disable-next-line react/set-state-in-effect
-    fetchCampaignState();
-    
-    // Polling setup
     let isMounted = true;
     let lastCheckedLedger = 0;
+    let pollIntervalMs = 5000;
+    let pollTimeoutId: ReturnType<typeof setTimeout>;
 
     const poll = async () => {
       if (!isMounted) return;
+
       try {
-        await // eslint-disable-next-line react/set-state-in-effect
-    fetchCampaignState();
-        
+        const state = await fetchCampaignStateData();
+        if (isMounted && state) {
+          setCampaign(state);
+        }
+
         const latestLedger = await rpcServer.getLatestLedger();
-        if (latestLedger.sequence) {
+        if (isMounted && latestLedger && latestLedger.sequence) {
           const currentSeq = latestLedger.sequence;
           if (lastCheckedLedger === 0) {
-            // First time, check last 100 ledgers to populate recent activity
-            await fetchRecentEvents(Math.max(1, currentSeq - 10000));
-            let success = await fetchRecentEvents(Math.max(1, currentSeq - 10000));
-            if (!success) {
-              success = await fetchRecentEvents(Math.max(1, currentSeq - 1000));
-              if (!success) {
-                 await fetchRecentEvents(currentSeq - 100);
-              }
-            }
+            // Initial load: check recent ledgers to populate live activity feed
+            await fetchRecentEvents(Math.max(1, currentSeq - 1000));
           } else if (currentSeq > lastCheckedLedger) {
-            await fetchRecentEvents(lastCheckedLedger);
+            // Use lastCheckedLedger + 1 as pagination cursor to avoid duplicate ledger querying
+            await fetchRecentEvents(lastCheckedLedger + 1);
           }
           lastCheckedLedger = currentSeq;
         }
+
+        // On successful poll, reset backoff to normal 5s interval
+        pollIntervalMs = 5000;
       } catch (e) {
-        console.error("Polling error:", e);
+        console.error("Polling error (applying scoped backoff):", e);
+        // Scoped backoff on read polling only: 5s -> 10s -> 20s -> max 30s
+        pollIntervalMs = Math.min(pollIntervalMs * 2, 30000);
       }
-      
+
       if (isMounted) {
-        setTimeout(poll, 5000); // Poll every 5 seconds
+        pollTimeoutId = setTimeout(poll, pollIntervalMs);
       }
     };
 
@@ -184,9 +120,9 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
     return () => {
       isMounted = false;
+      clearTimeout(pollTimeoutId);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchRecentEvents]);
 
   const fetchBalance = async (publicKey: string) => {
     try {
@@ -247,5 +183,3 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     </StellarContext.Provider>
   );
 }
-
-

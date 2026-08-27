@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../hooks/useStellar';
-import { useCrowdfundingContract } from '../hooks/useCrowdfundingContract';
+import { useCrowdfundingContract, TxStatus } from '../hooks/useCrowdfundingContract';
 import noLoopAnim from '../assets/noloopanim.mp4';
 import { rpcServer } from '../config';
 import { useToast } from '../components/Toast';
@@ -11,11 +11,11 @@ import { ContractInfoPanel } from '../components/ContractInfoPanel';
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, appError } = useStellar();
   const { toast } = useToast();
-  const { donate } = useCrowdfundingContract();
+  const { donate, isSubmitting } = useCrowdfundingContract();
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('');
-  const [txStatus, setTxStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
+  const [txStatus, setTxStatus] = useState<TxStatus>('idle');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
 
@@ -57,9 +57,11 @@ export function DashboardPage() {
     return null;
   }, [amount, balance]);
 
+  const isPending = isSubmitting || txStatus === 'preparing' || txStatus === 'signing' || txStatus === 'confirming';
+
   useEffect(() => {
     const handleBeforeUnload = (e: BeforeUnloadEvent) => {
-      if (txStatus === "loading") {
+      if (isPending) {
         e.preventDefault();
         e.returnValue = "Transaction is pending. Are you sure you want to leave?";
         return e.returnValue;
@@ -67,24 +69,32 @@ export function DashboardPage() {
     };
     window.addEventListener("beforeunload", handleBeforeUnload);
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [txStatus]);
+  }, [isPending]);
 
   const handleSendTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!amount || inlineError) return;
+    if (!amount || inlineError || isPending) return;
 
-    setTxStatus('loading');
+    setTxStatus('preparing');
     setTxMessage('Preparing transaction...');
     setTxHash('');
 
     try {
-      const hash = await donate(pubKey, amount, (msg) => setTxMessage(msg));
-      
+      const hash = await donate(pubKey, amount, (msg) => {
+        setTxMessage(msg);
+        if (msg.includes('sign')) {
+          setTxStatus('signing');
+        } else if (msg.includes('Submitting')) {
+          setTxStatus('confirming');
+        }
+      });
+
       // Simulate the sendRes object structure to keep the existing confirmation loop intact
       const sendRes = { status: 'PENDING', hash };
 
       if (sendRes.status === 'PENDING') {
-        setTxMessage('Waiting for confirmation...');
+        setTxStatus('confirming');
+        setTxMessage('Waiting for confirmation on Stellar...');
         let getTxRes = await rpcServer.getTransaction(sendRes.hash);
         while (getTxRes.status === 'NOT_FOUND') {
           await new Promise(resolve => setTimeout(resolve, 2000));
@@ -114,7 +124,7 @@ export function DashboardPage() {
 
   return (
     <div className="font-sans antialiased text-foreground bg-background min-h-screen flex flex-col relative overflow-hidden">
-      {txStatus === "loading" && (
+      {isPending && (
         <div className="absolute top-0 left-0 w-full h-1.5 z-[9999] bg-accent/20 overflow-hidden">
           <div className="w-full h-full bg-accent animate-loading-bar rounded-r-full"></div>
         </div>
@@ -291,14 +301,14 @@ export function DashboardPage() {
 
                 <button
                   type="submit"
-                  disabled={txStatus === 'loading' || !!inlineError || !amount}
+                  disabled={isPending || !!inlineError || !amount}
                   className={`w-full py-3.5 sm:py-4 min-h-[48px] rounded-xl text-sm sm:text-base font-semibold transition-all duration-300 flex justify-center items-center gap-2 active:scale-[0.99]
                     ${txStatus === 'success' ? 'bg-green-500 text-white shadow-[0_0_20px_rgba(34,197,94,0.3)]' : 
                       txStatus === 'error' ? 'bg-red-500 text-white' : 
                       'bg-accent text-accent-foreground hover:scale-[1.01] hover:shadow-[0_0_20px_rgba(0,184,148,0.2)] disabled:hover:scale-100 disabled:opacity-50 disabled:shadow-none'
                     }`}
                 >
-                  {txStatus === 'loading' ? (
+                  {isPending ? (
                     <><Loader2 size={18} className="animate-spin shrink-0" /> <span className="truncate">{txMessage}</span></>
                   ) : txStatus === 'success' ? (
                     <><CheckCircle2 size={18} className="shrink-0" /> Donation Successful</>

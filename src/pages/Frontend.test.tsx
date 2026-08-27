@@ -137,5 +137,40 @@ describe('Frontend Tests', () => {
     expect(screen.getByText('RewardBadge Contract')).toBeInTheDocument();
     expect(screen.getByText('Cross-Contract Proof Tx:')).toBeInTheDocument();
   });
+
+  test('donation form rejects zero or negative amounts with inline validation', async () => {
+    (UseStellarModule.useStellar as vi.Mock).mockReturnValue({
+      pubKey: 'GABC123...',
+      balance: '100',
+      campaign: {
+        creator: 'GXYZ',
+        deadline: Date.now() / 1000 + 3600,
+        goal: 100,
+        status: 'active',
+        token: 'XLM',
+        totalRaised: 50,
+      },
+      recentDonations: [],
+      fetchBalance: vi.fn(),
+      fetchCampaignState: vi.fn(),
+    });
+
+    render(
+      <BrowserRouter>
+        <DashboardPage />
+      </BrowserRouter>
+    );
+
+    const input = screen.getByPlaceholderText('10');
+    fireEvent.change(input, { target: { value: '0' } });
+
+    await waitFor(() => {
+      expect(screen.getByText('Amount must be greater than 0.')).toBeInTheDocument();
+    });
+
+    const submitButton = screen.getByRole('button', { name: /Donate Now/i });
+    expect(submitButton).toBeDisabled();
+  });
 });
+
 

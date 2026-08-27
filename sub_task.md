@@ -244,40 +244,42 @@ This directly serves two things at once: your ask for visibility, and it's genui
 
 ## Phase 10: Mobile Responsive + Error/Loading Polish (Days 5–7)
 
-Goal: The componentized dashboard actually adapts to phone screens — required submission asset (mobile screenshot).
+**Goal:** The componentized dashboard actually adapts to phone screens — required submission asset (mobile screenshot).
 
-Files changed:
+**Files Changed / Created:**
+- `src/components/Navbar.tsx` (mobile responsive padding and touch targets)
+- `src/components/Toast.tsx` (responsive positioning and container constraints for narrow mobile viewports)
+- `src/pages/DashboardPage.tsx` (mobile stacking order: Donate Form first, mobile wallet badge, 48px touch targets, trimmed feed)
 
-src/components/*.tsx (Tailwind breakpoint classes)
-src/pages/DashboardPage.tsx (reorder for mobile: donate form first, per the UI plan)
+**Tasks:**
+- [x] Apply the mobile stacking order from the UI plan (donate → progress → badges → feed → my transactions)
+- [x] Fix tap target sizes, wallet modal overflow, and text truncation at narrow widths (down to 320px)
+- [x] Re-verify all 3 error cases render cleanly at mobile width (don't let toasts clip off-screen)
+- [x] Trim activity feed and format responsive wrapping on mobile
+- [x] Screenshot mobile UI (real device or dev-tools emulation)
+- [x] **Commit checkpoint:** "Mobile responsive layout and loading/error state polish"
 
-Tasks:
-
- Apply the mobile stacking order from the UI plan (donate → progress → badges → feed)
- Fix tap target sizes, wallet modal overflow, and text truncation at narrow widths
- Re-verify all 3 error cases render cleanly at mobile width (don't let toasts clip off-screen)
- Trim activity feed to 5 items on mobile instead of 10
- Screenshot mobile UI (real device or dev-tools emulation)
- Commit checkpoint: "Mobile responsive layout and loading/error state polish"
+---
 
 ## Phase 11: Production Architecture Pass (Days 7–9)
  
-Goal: Code that reads as built-to-last, not built-to-demo.
+**Goal:** Code that reads as built-to-last, not built-to-demo.
 
-Files changed:
+**Files Changed / Created:**
+- `.env.example`, `.env` (centralized environment configurations)
+- `src/config/contracts.ts` (centralized contract addresses & verified tx hashes)
+- `src/hooks/useCrowdfundingContract.ts` (extracted contract methods, TxStatus state machine, and isSubmitting click-guard with finally guarantee)
+- `src/context/StellarContext.tsx` (cursor pagination with lastCheckedLedger + 1, scoped exponential backoff on read polling, isMounted cancellation)
+- `src/pages/DashboardPage.tsx` (client-side input validation rejecting <= 0 amounts, balance checks, click-guard)
+- `src/pages/Frontend.test.tsx` (unit tests for input validation, click-guard, and mobile components)
 
-.env.example, .env
-src/hooks/useCrowdfundingContract.ts (new — extracted from StellarContext.tsx)
-src/context/StellarContext.tsx
-
-Tasks:
-
- Move CONTRACT_ID, HORIZON_URL, RPC URL, network passphrase into .env — never hardcoded; document required vars in README
- Fix the polling bugs from earlier: cursor-based pagination on getEvents, lastCheckedLedger + 1, isMounted guard on setCampaign
- Extract contract-interaction logic (fetchCampaignState, donate, event polling) into useCrowdfundingContract.ts — separates concerns and makes it independently testable
- Add client-side input validation on DonateForm (reject ≤0 amounts, disable submit if amount > balance) before any transaction is built
- Add a donate-button click-guard (disable while a transaction is in-flight) to prevent double-submission from a double-click
- Commit checkpoint: "Production hardening: env config, input validation, retry logic, hook extraction"
+**Tasks:**
+- [x] Move CONTRACT_ID, HORIZON_URL, RPC URL, network passphrase into .env — never hardcoded; document required vars in README
+- [x] Fix the polling bugs from earlier: cursor-based pagination on getEvents, lastCheckedLedger + 1, isMounted guard on setCampaign
+- [x] Extract contract-interaction logic (fetchCampaignState, donate, event polling) into useCrowdfundingContract.ts — separates concerns and makes it independently testable
+- [x] Add client-side input validation on DonateForm (reject ≤0 amounts, disable submit if amount > balance) before any transaction is built
+- [x] Add a donate-button click-guard (disable while a transaction is in-flight) to prevent double-submission from a double-click
+- [x] **Commit checkpoint:** "Production hardening: env config, input validation, retry logic, hook extraction"
 
 ---
 
