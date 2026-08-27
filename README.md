@@ -15,6 +15,29 @@
 
 ---
 
+## 📸 Application Screenshots
+
+| Feature | Screenshot |
+|---|---|
+| **Dashboard Interface** | ![Dashboard](./screenshots/dashboard.png) |
+| **Wallet Selection Options** | ![Wallet Selection](./screenshots/disconnected.png) |
+| **Connecting Wallet** | ![Connecting Wallet](./screenshots/connecting.png) |
+| **Transaction Signature Request** | ![Transaction Popup](./screenshots/transaction_popup1.png) |
+| **Transaction Successful** | ![Transaction Complete](./screenshots/transaction%20complete.png) |
+
+---
+
+## ✨ Key Features
+
+- **Smart Contract Escrow:** Absolute trust. Backers' XLM is locked securely by Soroban until funding goals and deadlines are validated on-chain.
+- **Inter-Contract Reputation Badges:** Autonomous on-chain invocation awarding "Top Supporter" badges for contributions $\ge 100\text{ XLM}$.
+- **Real-Time Blockchain Sync:** Live activity feeds powered by Soroban RPC polling and ledger cursor tracking.
+- **Automated Refund Protection:** Guaranteed refunds for unmet funding goals.
+- **Stellar Speed:** Near-instant settlement and low transaction fees on Stellar Testnet.
+- **Modern Responsive UI:** Glassmorphism, dynamic animations, mobile-first responsive stacking, and accessible touch targets down to 320px.
+
+---
+
 ## 🏛️ Smart Contract Architecture & Inter-Contract Communication
 
 The system is built on two distinct, interlocking Soroban smart contracts operating on the Stellar Testnet:
@@ -107,7 +130,7 @@ EscrowCrowd includes an integrated **Contract Transparency Panel** directly in t
 The repository includes a comprehensive GitHub Actions workflow (`.github/workflows/ci.yml`) validating every commit:
 - **Rust Toolchain:** Pinned to `1.81.0` with `wasm32-unknown-unknown` target.
 - **Contract Compilation & Tests:** `cargo build --target wasm32-unknown-unknown --release` and `cargo test` (5 smart contract unit tests).
-- **Frontend Quality Assurance:** `oxlint` linting, Vitest unit test suite (5 frontend tests), and Vite production bundle compilation.
+- **Frontend Quality Assurance:** `oxlint` linting, Vitest unit test suite (6 frontend tests), and Vite production bundle compilation.
 
 ---
 
