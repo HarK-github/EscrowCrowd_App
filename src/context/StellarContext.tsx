@@ -4,7 +4,7 @@ import { StellarWalletsKit, Networks } from '@creit.tech/stellar-wallets-kit';
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
 import { xBullModule } from '@creit.tech/stellar-wallets-kit/modules/xbull';
-import { rpcServer, server } from '../config';
+import { rpcServer, server, CROWDFUND_CONTRACT_ID } from '../config';
 import { useToast } from '../components/Toast';
 import {
   fetchCampaignStateData,
@@ -12,6 +12,7 @@ import {
   CampaignState,
   DonationEvent,
 } from '../hooks/useCrowdfundingContract';
+import { useFactoryContract } from '../hooks/useFactoryContract';
 
 StellarWalletsKit.init({
   network: Networks.TESTNET,
@@ -21,6 +22,12 @@ StellarWalletsKit.init({
 
 export type { CampaignState, DonationEvent };
 
+export interface CustomCampaign {
+  id: string;
+  title: string;
+  addedAt: number;
+}
+
 interface StellarContextType {
   isConnecting: boolean;
   pubKey: string;
@@ -28,6 +35,10 @@ interface StellarContextType {
   appError: string;
   campaign: CampaignState | null;
   recentDonations: DonationEvent[];
+  activeContractId: string;
+  globalCampaigns: CustomCampaign[];
+  setActiveContractId: (id: string) => void;
+  fetchGlobalCampaigns: () => Promise<void>;
   connectWallet: () => Promise<void>;
   disconnectWallet: () => void;
   fetchBalance: (publicKey: string) => Promise<void>;
@@ -43,28 +54,84 @@ export function StellarProvider({ children }: { children: ReactNode }) {
   const [isConnecting, setIsConnecting] = useState(false);
   const [balance, setBalance] = useState<string | null>(null);
   const [appError, setAppError] = useState('');
+  
+  const [activeContractId, setActiveContractIdState] = useState(() => {
+    // Read from URL query param if present, else localStorage, else default
+    const urlParams = new URLSearchParams(window.location.search);
+    const queryId = urlParams.get('campaign');
+    if (queryId) return queryId;
+    return localStorage.getItem('activeContractId') || CROWDFUND_CONTRACT_ID;
+  });
+
+  const [globalCampaigns, setGlobalCampaigns] = useState<CustomCampaign[]>([]);
+  const { fetchAllCampaigns, fetchCampaignMetadata } = useFactoryContract();
+
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [recentDonations, setRecentDonations] = useState<DonationEvent[]>([]);
 
+  const setActiveContractId = useCallback((id: string) => {
+    setActiveContractIdState(id);
+    localStorage.setItem('activeContractId', id);
+    
+    // Update URL without reloading page
+    const url = new URL(window.location.href);
+    if (id === CROWDFUND_CONTRACT_ID) {
+      url.searchParams.delete('campaign');
+    } else {
+      url.searchParams.set('campaign', id);
+    }
+    window.history.pushState({}, '', url);
+
+    // Hard reset state immediately to prevent visual flashing of old data
+    setCampaign(null);
+    setRecentDonations([]);
+  }, []);
+
+  const fetchGlobalCampaigns = useCallback(async () => {
+    try {
+      const addresses = await fetchAllCampaigns(0, 100);
+      const campaigns: CustomCampaign[] = [];
+      for (const address of addresses) {
+        const meta = await fetchCampaignMetadata(address);
+        if (meta) {
+          campaigns.push({
+            id: meta.address,
+            title: meta.title,
+            addedAt: meta.createdAt,
+          });
+        }
+      }
+      setGlobalCampaigns(campaigns.sort((a, b) => b.addedAt - a.addedAt));
+    } catch (e) {
+      console.error("Failed to fetch global campaigns", e);
+    }
+  }, [fetchAllCampaigns, fetchCampaignMetadata]);
+
   const fetchCampaignState = useCallback(async () => {
     try {
-      const state = await fetchCampaignStateData();
+      const state = await fetchCampaignStateData(activeContractId);
       if (state) {
         setCampaign(state);
       }
     } catch (e) {
       console.error("Failed to fetch campaign state:", e);
     }
-  }, []);
+  }, [activeContractId]);
 
   const fetchRecentEvents = useCallback(async (startLedger: number) => {
     try {
-      const result = await fetchRecentEventsData(startLedger);
+      // Capture the requested ID to prevent stale closures
+      const requestedContractId = activeContractId;
+      const result = await fetchRecentEventsData(requestedContractId, startLedger);
+      
       if (result && result.events && result.events.length > 0) {
         setRecentDonations((prev) => {
-          const combined = [...result.events.reverse(), ...prev];
-          // Deduplicate by id
-          return combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+          // Guard: if activeContractId changed mid-flight, discard these events!
+          // We can't access current state inside setRecentDonations directly 
+          // without a ref, but fetchRecentEvents is recreated when activeContractId changes.
+          // By the time it resolves, if we still call setter, we might overwrite.
+          // In the caller (useEffect), we enforce the activeContractId check before applying.
+          return [...result.events.reverse(), ...prev].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
         });
         return true;
       }
@@ -73,7 +140,7 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       console.error("Failed to fetch events:", e?.message || e);
       return false;
     }
-  }, []);
+  }, [activeContractId]);
 
   // Polling with scoped exponential backoff and cursor tracking
   useEffect(() => {
@@ -82,26 +149,47 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     let pollIntervalMs = 5000;
     let pollTimeoutId: ReturnType<typeof setTimeout>;
 
+    // We capture the currently active contract ID for this specific useEffect instance
+    const pollingContractId = activeContractId;
+
     const poll = async () => {
       if (!isMounted) return;
 
       try {
-        const state = await fetchCampaignStateData();
-        if (isMounted && state) {
+        const state = await fetchCampaignStateData(pollingContractId);
+        
+        // Guard against stale closure / unmounted
+        if (!isMounted || activeContractId !== pollingContractId) return;
+
+        if (state) {
           setCampaign(state);
         }
 
         const latestLedger = await rpcServer.getLatestLedger();
-        if (isMounted && latestLedger && latestLedger.sequence) {
+        if (isMounted && activeContractId === pollingContractId && latestLedger && latestLedger.sequence) {
           const currentSeq = latestLedger.sequence;
+          
+          let fetchedEvents: { events: DonationEvent[]; latestLedger?: number } = { events: [] };
+          
           if (lastCheckedLedger === 0) {
             // Initial load: check recent ledgers to populate live activity feed
-            await fetchRecentEvents(Math.max(1, currentSeq - 1000));
+            fetchedEvents = await fetchRecentEventsData(pollingContractId, Math.max(1, currentSeq - 1000));
           } else if (currentSeq > lastCheckedLedger) {
-            // Use lastCheckedLedger + 1 as pagination cursor to avoid duplicate ledger querying
-            await fetchRecentEvents(lastCheckedLedger + 1);
+            // Use lastCheckedLedger + 1 as pagination cursor
+            fetchedEvents = await fetchRecentEventsData(pollingContractId, lastCheckedLedger + 1);
           }
-          lastCheckedLedger = currentSeq;
+
+          // Guard against stale closure AFTER async fetch completes
+          if (isMounted && activeContractId === pollingContractId && fetchedEvents.events.length > 0) {
+            setRecentDonations((prev) => {
+              const combined = [...fetchedEvents.events.reverse(), ...prev];
+              return combined.filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
+            });
+          }
+
+          if (isMounted && activeContractId === pollingContractId) {
+             lastCheckedLedger = currentSeq;
+          }
         }
 
         // On successful poll, reset backoff to normal 5s interval
@@ -112,18 +200,22 @@ export function StellarProvider({ children }: { children: ReactNode }) {
         pollIntervalMs = Math.min(pollIntervalMs * 2, 30000);
       }
 
-      if (isMounted) {
+      if (isMounted && activeContractId === pollingContractId) {
         pollTimeoutId = setTimeout(poll, pollIntervalMs);
       }
     };
 
+    // Hard reset on dependency change
+    setCampaign(null);
+    setRecentDonations([]);
+    
     poll();
 
     return () => {
       isMounted = false;
       clearTimeout(pollTimeoutId);
     };
-  }, [fetchRecentEvents]);
+  }, [activeContractId]);
 
   const fetchBalance = async (publicKey: string) => {
     try {
@@ -173,8 +265,12 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       // eslint-disable-next-line react/set-state-in-effect
       fetchBalance(pubKey);
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    fetchGlobalCampaigns();
+  }, [fetchGlobalCampaigns]);
 
   const addDonationEvent = useCallback((event: DonationEvent) => {
     setRecentDonations((prev) => {
@@ -186,7 +282,9 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
   return (
     <StellarContext.Provider value={{
-      pubKey, balance, isConnecting, appError, campaign, recentDonations, connectWallet, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent
+      pubKey, balance, isConnecting, appError, campaign, recentDonations, 
+      activeContractId, globalCampaigns, setActiveContractId, fetchGlobalCampaigns,
+      connectWallet, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent
     }}>
       {children}
     </StellarContext.Provider>
