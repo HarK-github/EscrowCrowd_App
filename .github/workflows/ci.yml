@@ -2,9 +2,9 @@ name: EscrowCrowd CI Pipeline
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
 
 jobs:
   build-and-test:
@@ -15,10 +15,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Set up Rust Toolchain
-        uses: dtolnay/rust-toolchain@master
+        uses: dtolnay/rust-toolchain@stable
         with:
-          toolchain: stable
-          targets: wasm32-unknown-unknown
+          targets: wasm32v1-none
+          components: rustfmt, clippy
 
       - name: Cache Cargo Dependencies
         uses: actions/cache@v4
@@ -27,30 +27,28 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             contracts/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
-      - name: Build Smart Contracts (WASM Target)
-        run: |
-          cd contracts
-          cargo build --target wasm32-unknown-unknown --release
+      - name: Build Smart Contracts
+        working-directory: contracts
+        run: cargo build --target wasm32v1-none --release
 
       - name: Run Smart Contract Unit Tests
-        run: |
-          cd contracts
-          cargo test
+        working-directory: contracts
+        run: cargo test
 
       - name: Set up Node.js Environment
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: 20
+          cache: npm
 
       - name: Install Frontend Dependencies
         run: npm ci
 
-      - name: Run Linter & Static Analysis
+      - name: Run Linter and Static Analysis
         run: npm run lint
 
       - name: Run Frontend Vitest Test Suite
