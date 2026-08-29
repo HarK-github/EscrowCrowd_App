@@ -43,6 +43,7 @@ describe('Frontend Tests', () => {
       appError: 'Wallet not found. Please install Freighter.',
       connectWallet: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 
@@ -71,6 +72,7 @@ describe('Frontend Tests', () => {
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 
@@ -107,6 +109,7 @@ describe('Frontend Tests', () => {
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 
@@ -126,6 +129,7 @@ describe('Frontend Tests', () => {
       appError: '',
       connectWallet: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 
@@ -141,9 +145,8 @@ describe('Frontend Tests', () => {
     // Expand the panel
     fireEvent.click(toggleButton);
 
-    expect(screen.getByText('Crowdfund Escrow Contract')).toBeInTheDocument();
-    expect(screen.getByText('RewardBadge Contract')).toBeInTheDocument();
-    expect(screen.getByText('Cross-Contract Proof Tx:')).toBeInTheDocument();
+    expect(screen.getByText('Deployed Contracts')).toBeInTheDocument();
+    expect(screen.getByText(/active campaigns found on the network/i)).toBeInTheDocument();
   });
 
   test('donation form rejects zero or negative amounts with inline validation', async () => {
@@ -163,6 +166,7 @@ describe('Frontend Tests', () => {
       fetchCampaignState: vi.fn(),
       addDonationEvent: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 
@@ -215,6 +219,7 @@ describe('Frontend Tests', () => {
       fetchCampaignState: vi.fn(),
       addDonationEvent: vi.fn(),
       customCampaigns: [],
+      globalCampaigns: [],
       activeContractId: 'MOCK_CONTRACT_ID',
     });
 

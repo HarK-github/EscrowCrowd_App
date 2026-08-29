@@ -71,6 +71,9 @@ export function DashboardPage() {
 
   // Inline Validation
   const inlineError = useMemo(() => {
+    if (campaign && campaign.status !== 'active') {
+      return "Campaign has ended.";
+    }
     if (!amount) return null;
     const parsedAmount = parseFloat(amount);
     if (parsedAmount <= 0) return "Amount must be greater than 0.";
@@ -84,7 +87,7 @@ export function DashboardPage() {
       }
     }
     return null;
-  }, [amount, balance]);
+  }, [amount, balance, campaign]);
 
   const isPending = isSubmitting || txStatus === 'preparing' || txStatus === 'signing' || txStatus === 'confirming';
 
@@ -363,8 +366,8 @@ export function DashboardPage() {
                       }
                     }}
                     required
-                    disabled={txStatus === 'loading'}
-                    className="w-full bg-transparent px-4 py-3.5 sm:py-4 text-lg sm:text-xl text-white font-mono placeholder:text-white/20 focus:outline-none min-h-[48px]"
+                    disabled={txStatus === 'loading' || (campaign && campaign.status !== 'active')}
+                    className="w-full bg-transparent px-4 py-3.5 sm:py-4 text-lg sm:text-xl text-white font-mono placeholder:text-white/20 focus:outline-none min-h-[48px] disabled:opacity-50"
                   />
                   <div className="pr-4 font-mono text-muted-foreground font-semibold text-sm sm:text-base">XLM</div>
                 </div>
@@ -376,11 +379,12 @@ export function DashboardPage() {
                     <button
                       key={preset}
                       type="button"
+                      disabled={campaign && campaign.status !== 'active'}
                       onClick={() => {
                         setAmount(preset.toString());
                         setTxStatus('idle');
                       }}
-                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-colors border ${
+                      className={`px-2.5 py-1 rounded-lg text-xs font-mono font-medium transition-colors border disabled:opacity-50 disabled:cursor-not-allowed ${
                         amount === preset.toString()
                           ? 'bg-accent text-accent-foreground border-accent font-semibold'
                           : 'bg-white/5 hover:bg-white/10 text-neutral-300 border-white/10'
@@ -392,7 +396,7 @@ export function DashboardPage() {
                 </div>
 
                 {/* Inline Validation Error */}
-                {inlineError && amount !== '' && txStatus === 'idle' && (
+                {inlineError && (amount !== '' || (campaign && campaign.status !== 'active')) && txStatus === 'idle' && (
                   <div className="text-red-400 text-xs sm:text-sm flex items-center gap-1.5 animate-in fade-in slide-in-from-top-1">
                     <XCircle size={14} className="shrink-0" /> <span>{inlineError}</span>
                   </div>
