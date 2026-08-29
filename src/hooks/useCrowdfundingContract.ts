@@ -127,7 +127,7 @@ export const fetchRecentEventsData = async (
               const amountStroops = scValToNative(e.value);
               const amount = Number(amountStroops) / 10000000;
               return {
-                id: e.id,
+                id: e.txHash,
                 donor: donor.toString(),
                 amount,
                 timestamp: e.ledgerClosedAt,
