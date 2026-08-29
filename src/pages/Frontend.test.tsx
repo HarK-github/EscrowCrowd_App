@@ -42,6 +42,8 @@ describe('Frontend Tests', () => {
       pubKey: '',
       appError: 'Wallet not found. Please install Freighter.',
       connectWallet: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
@@ -68,6 +70,8 @@ describe('Frontend Tests', () => {
       recentDonations: [],
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
@@ -102,6 +106,8 @@ describe('Frontend Tests', () => {
       recentDonations: [],
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
@@ -119,6 +125,8 @@ describe('Frontend Tests', () => {
       pubKey: '',
       appError: '',
       connectWallet: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
@@ -154,6 +162,8 @@ describe('Frontend Tests', () => {
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
       addDonationEvent: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
@@ -204,6 +214,8 @@ describe('Frontend Tests', () => {
       fetchBalance: vi.fn(),
       fetchCampaignState: vi.fn(),
       addDonationEvent: vi.fn(),
+      customCampaigns: [],
+      activeContractId: 'MOCK_CONTRACT_ID',
     });
 
     render(
