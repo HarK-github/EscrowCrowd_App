@@ -9,13 +9,9 @@
 
 ---
 
-## Demo video:
+## Demo video: https://drive.google.com/file/d/1mgehQliBfAuGfMMY_2ceGnMjw4RyBaim/view?usp=sharing
 
-
-https://github.com/user-attachments/assets/57332f55-045c-4f8b-9d85-8494bbb89c8f
-
-
-
+  
 ## 🌟 Application Preview
 
 
