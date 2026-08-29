@@ -12,7 +12,7 @@ import { Navbar } from '../components/Navbar';
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId, customCampaigns } = useStellar();
   const { toast } = useToast();
-  const { donate, withdraw, isSubmitting } = useCrowdfundingContract(activeContractId);
+  const { donate, withdraw, isSubmitting, fetchContractBalance } = useCrowdfundingContract(activeContractId);
   const navigate = useNavigate();
 
   const [isWithdrawing, setIsWithdrawing] = useState(false);
@@ -22,15 +22,19 @@ export function DashboardPage() {
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
   
-  // Track if this campaign has been emptied locally
-  const [isWithdrawnLocal, setIsWithdrawnLocal] = useState(() => {
-    return localStorage.getItem(`withdrawn_${activeContractId}`) === 'true';
-  });
+  // Track if this campaign has been emptied (on-chain balance is 0)
+  const [isWithdrawnOnChain, setIsWithdrawnOnChain] = useState(false);
 
-  // Re-check withdrawn status when active campaign changes
+  // Fetch true on-chain balance to reliably determine if it's emptied
   useEffect(() => {
-    setIsWithdrawnLocal(localStorage.getItem(`withdrawn_${activeContractId}`) === 'true');
-  }, [activeContractId]);
+    async function checkBalance() {
+      if (campaign && campaign.status === 'completed') {
+        const bal = await fetchContractBalance(activeContractId);
+        setIsWithdrawnOnChain(bal === 0);
+      }
+    }
+    checkBalance();
+  }, [activeContractId, campaign, fetchContractBalance]);
   useEffect(() => {
     if (!pubKey) {
       navigate('/');
@@ -182,8 +186,7 @@ export function DashboardPage() {
           setTxMessage('Withdrawal successful!');
           setTxHash(sendRes.hash);
           fetchBalance(pubKey);
-          setIsWithdrawnLocal(true);
-          localStorage.setItem(`withdrawn_${activeContractId}`, 'true');
+          setIsWithdrawnOnChain(true);
           toast("Withdrawal successful!", "success");
           fetchCampaignState();
         } else {
@@ -280,7 +283,7 @@ export function DashboardPage() {
                         </div>
                         
                         {/* Withdraw Button for Creator */}
-                        {pubKey === campaign.creator && campaign.status === 'completed' && !isWithdrawnLocal && (
+                        {pubKey === campaign.creator && campaign.status === 'completed' && !isWithdrawnOnChain && (
                           <button
                             onClick={handleWithdraw}
                             disabled={isWithdrawing || txStatus === 'success'}
@@ -293,7 +296,7 @@ export function DashboardPage() {
                             )}
                           </button>
                         )}
-                        {pubKey === campaign.creator && isWithdrawnLocal && (
+                        {pubKey === campaign.creator && isWithdrawnOnChain && (
                           <div className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 bg-white/5 text-muted-foreground border border-white/10">
                             <CheckCircle2 size={14} /> Campaign Emptied
                           </div>

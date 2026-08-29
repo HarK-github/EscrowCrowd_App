@@ -75,6 +75,31 @@ export const fetchCampaignStateData = async (contractId: string): Promise<Campai
   }
 };
 
+export const fetchContractBalance = async (contractId: string): Promise<number> => {
+  try {
+    const dummyAccount = new Account(Keypair.random().publicKey(), '0');
+    const tokenContract = new Contract(TESTNET_NATIVE_SAC);
+    const tx = new TransactionBuilder(dummyAccount, {
+      fee: '100',
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(tokenContract.call('balance', nativeToScVal(contractId, { type: 'address' })))
+      .setTimeout(30)
+      .build();
+
+    const response = await rpcServer.simulateTransaction(tx);
+    if (rpc.Api.isSimulationSuccess(response)) {
+      const resultVal = response.result.retval;
+      const balanceStroops = scValToNative(resultVal);
+      return Number(balanceStroops) / 10000000;
+    }
+    return 0;
+  } catch (e) {
+    console.error('Failed to fetch contract balance:', e);
+    return 0;
+  }
+};
+
 export const fetchRecentEventsData = async (
   contractId: string,
   startLedger: number
@@ -357,6 +382,7 @@ export const useCrowdfundingContract = (activeContractId: string) => {
     deployAndCreateCampaign,
     isSubmitting,
     fetchCampaignState: (id: string) => fetchCampaignStateData(id),
+    fetchContractBalance: (id: string) => fetchContractBalance(id),
     fetchRecentEvents: (id: string, startLedger: number) => fetchRecentEventsData(id, startLedger),
   };
 };
