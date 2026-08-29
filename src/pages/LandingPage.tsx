@@ -1,6 +1,6 @@
 import React, { useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Wallet, Loader2 } from "lucide-react";
+import { Wallet, Loader2, ArrowRight } from "lucide-react";
 import { FaGithub, FaTwitter, FaLinkedin } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../hooks/useStellar';
@@ -15,9 +15,7 @@ export function LandingPage() {
   const navigate = useNavigate();
 
   useEffect(() => {
-    if (pubKey) {
-      navigate('/dashboard');
-    }
+    // User can manually navigate to dashboard if they want to
   }, [pubKey, navigate]);
 
   return (
@@ -72,12 +70,21 @@ export function LandingPage() {
             transition={{ duration: 0.6, delay: 0.3 }}
             className="flex flex-col items-center gap-4 z-50"
           >
-            <button
-              onClick={connectWallet}
-              className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-[1.02] transition-transform"
-            >
-              {isConnecting ? <><Loader2 size={18} className="animate-spin" /> Connecting...</> : <><Wallet size={18} /> Connect Wallet</>}
-            </button>
+            {pubKey ? (
+              <button
+                onClick={() => navigate('/dashboard')}
+                className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-[1.02] transition-transform"
+              >
+                Dashboard <ArrowRight size={18} />
+              </button>
+            ) : (
+              <button
+                onClick={connectWallet}
+                className="bg-foreground text-background rounded-full px-8 py-3.5 text-base font-medium flex items-center gap-2 hover:scale-[1.02] transition-transform"
+              >
+                {isConnecting ? <><Loader2 size={18} className="animate-spin" /> Connecting...</> : <><Wallet size={18} /> Connect Wallet</>}
+              </button>
+            )}
             {appError && (
               <div className="bg-red-500/10 border border-red-500/20 text-red-400 px-4 py-2 rounded-lg text-sm max-w-md text-center">
                 {appError}

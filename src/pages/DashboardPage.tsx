@@ -7,11 +7,12 @@ import noLoopAnim from '../assets/noloopanim.mp4';
 import { rpcServer } from '../config';
 import { useToast } from '../components/Toast';
 import { ContractInfoPanel } from '../components/ContractInfoPanel';
+import { Navbar } from '../components/Navbar';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId, customCampaigns } = useStellar();
   const { toast } = useToast();
-  const { donate, isSubmitting } = useCrowdfundingContract();
+  const { donate, isSubmitting } = useCrowdfundingContract(activeContractId);
   const navigate = useNavigate();
 
   const [amount, setAmount] = useState('10');
@@ -156,46 +157,10 @@ export function DashboardPage() {
 
       <div className="z-40 relative flex-1 flex flex-col w-full">
         
-        {/* Header */}
-        <header className="flex justify-between items-center mb-6 px-4 sm:px-10 py-4 sm:py-6 border-b border-white/10 bg-black/20 backdrop-blur-md w-full">
-          <div className="text-xl sm:text-2xl font-bold tracking-tight flex items-center gap-2">
-            EscrowCrowd
-          </div>
-          <div className="flex items-center gap-2 sm:gap-3">
-            {pubKey ? (
-              <>
-                {/* Mobile compact wallet badge */}
-                <div className="flex sm:hidden items-center border border-white/10 bg-black/40 rounded-full py-1 px-2.5 backdrop-blur-md text-xs">
-                  <span className="font-mono text-[11px] mr-1.5 pr-1.5 border-r border-white/20 text-neutral-300">
-                    {pubKey.slice(0, 4)}...{pubKey.slice(-3)}
-                  </span>
-                  <span className="font-semibold text-accent text-[11px]">
-                    {balance ? `${balance} XLM` : <Loader2 size={10} className="animate-spin inline" />}
-                  </span>
-                </div>
-
-                {/* Desktop wallet badge */}
-                <div className="hidden sm:flex items-center border border-white/5 bg-transparent rounded-full py-1.5 px-4 backdrop-blur-md">
-                  <Wallet size={14} className="text-muted-foreground mr-2" />
-                  <span className="font-mono text-sm mr-3 border-r border-white/20 pr-3">
-                    {pubKey.slice(0, 5)}...{pubKey.slice(-4)}
-                  </span>
-                  <span className="font-semibold text-sm text-accent">
-                    {balance ? `${balance} XLM` : <Loader2 size={14} className="animate-spin inline" />}
-                  </span>
-                </div>
-                <button
-                  onClick={disconnectWallet}
-                  className="text-xs sm:text-sm font-medium bg-white/10 text-white backdrop-blur-md px-3 sm:px-4 py-1.5 min-h-[36px] sm:min-h-[40px] rounded-full hover:bg-white/20 transition-colors flex items-center justify-center shrink-0"
-                >
-                  Disconnect
-                </button>
-              </>
-            ) : (
-              <span className="text-xs sm:text-sm text-muted-foreground animate-pulse">Connecting...</span>
-            )}
-          </div>
-        </header>
+        {/* Navbar replaces the custom header for consistency */}
+        <div className="mb-6">
+          <Navbar />
+        </div>
         {appError && (
           <div className="mb-6 p-4 rounded-xl bg-red-500/10 border border-red-500/20 text-red-400 flex items-center shadow-xl text-sm max-w-5xl mx-auto w-full">
             <span>{appError}</span>
