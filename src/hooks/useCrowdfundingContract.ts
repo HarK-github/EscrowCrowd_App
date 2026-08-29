@@ -247,6 +247,33 @@ export const useCrowdfundingContract = (activeContractId: string) => {
   );
 
   /**
+   * Withdraws funds from the campaign to the creator.
+   */
+  const withdraw = useCallback(
+    async (
+      pubKey: string,
+      onStatusChange?: (msg: string) => void
+    ): Promise<string> => {
+      setIsSubmitting(true);
+      try {
+        if (onStatusChange) onStatusChange('Preparing withdrawal...');
+        const contract = new Contract(activeContractId);
+
+        const operation = contract.call(
+          'withdraw',
+          nativeToScVal(pubKey, { type: 'address' })
+        );
+
+        const { txHash } = await executeTransaction(pubKey, operation, onStatusChange);
+        return txHash;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [activeContractId]
+  );
+
+  /**
    * Deploys a new Crowdfund contract and initializes it with the given parameters.
    * Handles multi-signature flow and saving state.
    */
@@ -326,6 +353,7 @@ export const useCrowdfundingContract = (activeContractId: string) => {
 
   return {
     donate,
+    withdraw,
     deployAndCreateCampaign,
     isSubmitting,
     fetchCampaignState: (id: string) => fetchCampaignStateData(id),

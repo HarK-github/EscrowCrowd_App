@@ -12,8 +12,10 @@ import { Navbar } from '../components/Navbar';
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId, customCampaigns } = useStellar();
   const { toast } = useToast();
-  const { donate, isSubmitting } = useCrowdfundingContract(activeContractId);
+  const { donate, withdraw, isSubmitting } = useCrowdfundingContract(activeContractId);
   const navigate = useNavigate();
+
+  const [isWithdrawing, setIsWithdrawing] = useState(false);
 
   const [amount, setAmount] = useState('10');
   const [txStatus, setTxStatus] = useState<TxStatus>('idle');
@@ -138,6 +140,49 @@ export function DashboardPage() {
     }
   };
 
+  const handleWithdraw = async () => {
+    if (isPending || isWithdrawing) return;
+    setIsWithdrawing(true);
+    setTxStatus('preparing');
+    setTxMessage('Preparing withdrawal...');
+    
+    try {
+      const hash = await withdraw(pubKey, (msg) => {
+        setTxMessage(msg);
+        if (msg.includes('sign')) setTxStatus('signing');
+        else if (msg.includes('Submitting')) setTxStatus('confirming');
+      });
+      
+      const sendRes = { status: 'PENDING', hash };
+      if (sendRes.status === 'PENDING') {
+        setTxStatus('confirming');
+        setTxMessage('Waiting for confirmation on Stellar...');
+        let getTxRes = await rpcServer.getTransaction(sendRes.hash);
+        while (getTxRes.status === 'NOT_FOUND') {
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          getTxRes = await rpcServer.getTransaction(sendRes.hash);
+        }
+        if (getTxRes.status === 'SUCCESS') {
+          setTxStatus('success');
+          setTxMessage('Withdrawal successful!');
+          setTxHash(sendRes.hash);
+          fetchBalance(pubKey);
+          toast("Withdrawal successful!", "success");
+          fetchCampaignState();
+        } else {
+          throw new Error('Transaction failed on network.');
+        }
+      }
+    } catch (err: any) {
+      console.error(err);
+      setTxStatus('error');
+      setTxMessage(err?.message || 'Withdrawal failed');
+      toast(err?.message || "Withdrawal failed", "error");
+    } finally {
+      setIsWithdrawing(false);
+    }
+  };
+
   return (
     <div className="font-sans antialiased text-foreground bg-background min-h-screen flex flex-col relative overflow-hidden">
       {isPending && (
@@ -207,13 +252,30 @@ export function DashboardPage() {
                       </div>
 
                       {/* Escrow Vault Explanation */}
-                      <div className="mt-4 pt-3 border-t border-white/5 flex items-center justify-between text-xs text-muted-foreground">
-                        <span className="flex items-center gap-1.5 text-neutral-300">
-                          <ShieldCheck size={14} className="text-accent" /> All-or-Nothing Escrow Vault
-                        </span>
-                        <span className="text-[11px] text-neutral-400 hidden sm:inline">
-                          Funds locked on-chain until goal is reached
-                        </span>
+                      <div className="mt-4 pt-3 border-t border-white/5 flex flex-col sm:flex-row items-center justify-between text-xs text-muted-foreground gap-3">
+                        <div className="flex items-center gap-1.5 w-full sm:w-auto justify-between sm:justify-start">
+                          <span className="flex items-center gap-1.5 text-neutral-300">
+                            <ShieldCheck size={14} className="text-accent" /> All-or-Nothing Escrow Vault
+                          </span>
+                          <span className="text-[11px] text-neutral-400 hidden sm:inline">
+                            Funds locked on-chain until goal is reached
+                          </span>
+                        </div>
+                        
+                        {/* Withdraw Button for Creator */}
+                        {pubKey === campaign.creator && campaign.status === 'completed' && (
+                          <button
+                            onClick={handleWithdraw}
+                            disabled={isWithdrawing || txStatus === 'success'}
+                            className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all duration-300 bg-accent text-accent-foreground hover:scale-105 hover:shadow-[0_0_15px_rgba(0,184,148,0.3)] disabled:opacity-50 disabled:hover:scale-100"
+                          >
+                            {isWithdrawing ? (
+                              <><Loader2 size={14} className="animate-spin" /> Withdrawing...</>
+                            ) : (
+                              'Withdraw Funds'
+                            )}
+                          </button>
+                        )}
                       </div>
                     </>
                   ) : (
