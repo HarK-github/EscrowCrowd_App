@@ -100,6 +100,19 @@ EscrowCrowd includes an integrated **Contract Transparency Panel** directly in t
 
 ---
 
+### 1. Centralized Contract Factory (Implemented)
+To solve the issue of contract upgradability and fragmentation, EscrowCrowd now uses a **Factory Contract Pattern**. Instead of users individually deploying contracts, the Factory maintains the latest, most secure WASM hash and deploys instances natively on-chain. 
+- **Global Discovery:** The Factory maintains a registry of all deployed campaigns and their metadata, allowing the frontend to dynamically list every active campaign.
+- **RewardBadge Hardening:** The `RewardBadge` contract now enforces a caller allowlist. Only campaigns legitimately deployed and registered by the Factory are authorized to mint badges, elegantly closing a major security gap.
+
+### 2. Event Indexing for Scalability
+Currently, the frontend queries the Factory's registry array directly for discovery. As the platform scales, reading a growing list of thousands of contracts will become slow and hit contract read-size limits (even with pagination).
+
+**Future Work:** 
+A production version of this platform will use an Indexer (like **The Graph** or **Goldsky**) to listen to the `campaign_created` events emitted by the Factory in real-time. This provides a fast, searchable GraphQL API for the frontend, ensuring the platform remains hyper-scalable. The current direct-polling architecture is sufficient for demo and early adoption scale.
+
+---
+
 ## 🛡️ Production Hardening & Reliability Features
 
 1. **Transaction State Machine & In-Flight Click Guard:**
