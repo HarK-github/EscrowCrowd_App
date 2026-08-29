@@ -79,7 +79,7 @@ export function CreateCampaignModal({ isOpen, onClose }: CreateCampaignModalProp
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-[#0c1015] border border-white/10 rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="liquid-glass border border-white/10 rounded-2xl shadow-xl backdrop-blur-xl w-full max-w-lg overflow-hidden flex flex-col max-h-[90vh]">
         <div className="flex justify-between items-center p-5 border-b border-white/5 bg-white/[0.02]">
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Rocket size={18} className="text-accent" /> Launch Escrow Campaign
