@@ -21,7 +21,16 @@ export function DashboardPage() {
   const [txStatus, setTxStatus] = useState<TxStatus>('idle');
   const [txMessage, setTxMessage] = useState('');
   const [txHash, setTxHash] = useState('');
+  
+  // Track if this campaign has been emptied locally
+  const [isWithdrawnLocal, setIsWithdrawnLocal] = useState(() => {
+    return localStorage.getItem(`withdrawn_${activeContractId}`) === 'true';
+  });
 
+  // Re-check withdrawn status when active campaign changes
+  useEffect(() => {
+    setIsWithdrawnLocal(localStorage.getItem(`withdrawn_${activeContractId}`) === 'true');
+  }, [activeContractId]);
   useEffect(() => {
     if (!pubKey) {
       navigate('/');
@@ -63,6 +72,12 @@ export function DashboardPage() {
     if (parsedAmount <= 0) return "Amount must be greater than 0.";
     if (balance === "Not Funded" || parseFloat(balance || "0") < parsedAmount) {
       return "Insufficient XLM balance for this transaction.";
+    }
+    if (campaign && campaign.status === 'active') {
+      const remaining = campaign.goal - campaign.totalRaised;
+      if (parsedAmount > remaining) {
+        return `Amount exceeds goal. Only ${remaining.toFixed(2)} XLM remaining.`;
+      }
     }
     return null;
   }, [amount, balance]);
@@ -167,6 +182,8 @@ export function DashboardPage() {
           setTxMessage('Withdrawal successful!');
           setTxHash(sendRes.hash);
           fetchBalance(pubKey);
+          setIsWithdrawnLocal(true);
+          localStorage.setItem(`withdrawn_${activeContractId}`, 'true');
           toast("Withdrawal successful!", "success");
           fetchCampaignState();
         } else {
@@ -263,7 +280,7 @@ export function DashboardPage() {
                         </div>
                         
                         {/* Withdraw Button for Creator */}
-                        {pubKey === campaign.creator && campaign.status === 'completed' && (
+                        {pubKey === campaign.creator && campaign.status === 'completed' && !isWithdrawnLocal && (
                           <button
                             onClick={handleWithdraw}
                             disabled={isWithdrawing || txStatus === 'success'}
@@ -275,6 +292,11 @@ export function DashboardPage() {
                               'Withdraw Funds'
                             )}
                           </button>
+                        )}
+                        {pubKey === campaign.creator && isWithdrawnLocal && (
+                          <div className="w-full sm:w-auto px-4 py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 bg-white/5 text-muted-foreground border border-white/10">
+                            <CheckCircle2 size={14} /> Campaign Emptied
+                          </div>
                         )}
                       </div>
                     </>
