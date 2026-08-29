@@ -9,9 +9,22 @@
 
 ---
 
+## Demo video:
+
+
+https://github.com/user-attachments/assets/57332f55-045c-4f8b-9d85-8494bbb89c8f
+
+
+
 ## 🌟 Application Preview
 
+
+
+
 ![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png)
+
+
+
 
 ---
 
