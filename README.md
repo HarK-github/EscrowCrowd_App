@@ -40,7 +40,8 @@
 
 - **Smart Contract Escrow:** Absolute trust. Backers' XLM is locked securely by Soroban until funding goals and deadlines are validated on-chain.
 - **Inter-Contract Reputation Badges:** Autonomous on-chain invocation awarding "Top Supporter" badges for contributions $\ge 100\text{ XLM}$.
-- **Real-Time Blockchain Sync:** Live activity feeds powered by Soroban RPC polling and ledger cursor tracking.
+- **Hybrid Real-Time Architecture:** A dedicated Node.js/Socket.IO backend continuously indexes blockchain events, streaming live donation feeds and progress bar updates instantly to the UI.
+- **Graceful Decentralized Fallback:** If the backend socket disconnects, the frontend seamlessly degrades to direct on-chain Soroban RPC polling, ensuring 100% uptime without a centralized single point of failure.
 - **Automated Refund Protection:** Guaranteed refunds for unmet funding goals.
 - **Stellar Speed:** Near-instant settlement and low transaction fees on Stellar Testnet.
 - **Modern Responsive UI:** Glassmorphism, dynamic animations, mobile-first responsive stacking, and accessible touch targets down to 320px.
@@ -114,11 +115,12 @@ To solve the issue of contract upgradability and fragmentation, EscrowCrowd now 
 - **Global Discovery:** The Factory maintains a registry of all deployed campaigns and their metadata, allowing the frontend to dynamically list every active campaign.
 - **RewardBadge Hardening:** The `RewardBadge` contract now enforces a caller allowlist. Only campaigns legitimately deployed and registered by the Factory are authorized to mint badges, elegantly closing a major security gap.
 
-### 2. Event Indexing for Scalability
-Currently, the frontend queries the Factory's registry array directly for discovery. As the platform scales, reading a growing list of thousands of contracts will become slow and hit contract read-size limits (even with pagination).
+### 2. Hybrid Real-Time Event Indexing (Implemented)
+Initially, the frontend queried the Stellar RPC directly to discover campaigns and poll for donation events. However, polling scales poorly with thousands of users. 
 
-**Future Work:** 
-A production version of this platform will use an Indexer (like **The Graph** or **Goldsky**) to listen to the `campaign_created` events emitted by the Factory in real-time. This provides a fast, searchable GraphQL API for the frontend, ensuring the platform remains hyper-scalable. The current direct-polling architecture is sufficient for demo and early adoption scale.
+To solve this, EscrowCrowd implements a **hybrid architecture**:
+- **Centralized Speed (Node.js Backend):** A lightweight `backend/server.js` acts as an indexer, constantly tailing the Stellar ledger for contract events. When a donation occurs, it instantly pushes a `new_donation` event via **Socket.IO** to connected clients, resulting in snappy, zero-latency UI updates for the Activity Feed and Campaign Progress bars.
+- **Decentralized Reliability (RPC Fallback):** The React frontend is built with graceful degradation. If the backend server goes down, the frontend automatically switches back to decentralized RPC polling. The UI never goes stale, prioritizing decentralization and reliability while optimizing for UX.
 
 ---
 

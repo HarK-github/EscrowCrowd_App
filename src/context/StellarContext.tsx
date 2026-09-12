@@ -1,5 +1,6 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState, useEffect, ReactNode, useCallback } from "react";
+import React, { createContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import { io, type Socket } from 'socket.io-client';
 import { StellarWalletsKit, Networks } from '@creit.tech/stellar-wallets-kit';
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
 import { AlbedoModule } from '@creit.tech/stellar-wallets-kit/modules/albedo';
@@ -68,6 +69,70 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
   const [campaign, setCampaign] = useState<CampaignState | null>(null);
   const [recentDonations, setRecentDonations] = useState<DonationEvent[]>([]);
+
+  const socketRef = useRef<Socket | null>(null);
+  const isSocketConnectedRef = useRef(false);
+  const [, setIsSocketConnected] = useState(false); // Used to trigger render when connected/disconnected if needed
+
+  useEffect(() => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) return;
+
+    const socket = io(backendUrl, {
+      transports: ['websocket'],
+      reconnection: true,
+    });
+    socketRef.current = socket;
+
+    socket.on('connect', () => {
+      console.log('[socket] connected', socket.id);
+      setIsSocketConnected(true);
+      isSocketConnectedRef.current = true;
+      socket.emit('subscribe_campaign', activeContractId);
+    });
+
+    socket.on('new_donation', (donation: {
+      campaignId: string;
+      donor: string;
+      amount: string;
+      ledger: number;
+      txHash: string;
+      timestamp: string;
+    }) => {
+      // We only care if it belongs to the currently viewed campaign
+      if (activeContractId === donation.campaignId) {
+        setRecentDonations((prev) => {
+          const alreadyHave = prev.some((d) => d.id === donation.txHash);
+          if (alreadyHave) return prev;
+          
+          const newEvent: DonationEvent = {
+            id: donation.txHash,
+            donor: donation.donor,
+            amount: parseFloat(donation.amount),
+            timestamp: donation.timestamp,
+          };
+          
+          return [newEvent, ...prev].slice(0, 50);
+        });
+
+        // Refetch the campaign state to update totalRaised and progress bar
+        fetchCampaignStateData(donation.campaignId).then((state) => {
+          if (state) setCampaign(state);
+        });
+      }
+    });
+
+    socket.on('disconnect', (reason) => {
+      console.log('[socket] disconnected:', reason);
+      setIsSocketConnected(false);
+      isSocketConnectedRef.current = false;
+    });
+
+    return () => {
+      socket.disconnect();
+      socketRef.current = null;
+    };
+  }, [activeContractId]);
 
   const setActiveContractId = useCallback((id: string) => {
     setActiveContractIdState(id);
@@ -153,7 +218,12 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     const pollingContractId = activeContractId;
 
     const poll = async () => {
-      if (!isMounted) return;
+      if (!isMounted || isSocketConnectedRef.current) {
+        if (isMounted && activeContractId === pollingContractId) {
+          pollTimeoutId = setTimeout(poll, pollIntervalMs);
+        }
+        return;
+      }
 
       try {
         const state = await fetchCampaignStateData(pollingContractId);

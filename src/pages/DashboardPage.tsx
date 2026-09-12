@@ -52,7 +52,7 @@ export function DashboardPage() {
   }, [recentDonations, pubKey]);
 
   // Derived campaign stats
-  const progressPercent = campaign ? Math.min((campaign.totalRaised / campaign.goal) * 100, 100) : 0;
+  const progressPercent = campaign && campaign.goal > 0 ? Math.min((campaign.totalRaised / campaign.goal) * 100, 100) : 0;
   
   const timeRemainingText = useMemo(() => {
     if (!campaign) return '48 hours left';
