@@ -11,28 +11,11 @@
 
 ## Demo video: https://drive.google.com/file/d/1mgehQliBfAuGfMMY_2ceGnMjw4RyBaim/view?usp=sharing
 
-  
 ## 🌟 Application Preview
-
-
-
-
-![EscrowCrowd Landing Page Demo](./src/assets/Stellar-dApp-front.png)
-
-
-
-
----
-
-## 📸 Application Screenshots
-
-| Feature | Screenshot |
-|---|---|
-| **Dashboard Interface** | ![Dashboard](./screenshots/dashboard.png) |
-| **Wallet Selection Options** | ![Wallet Selection](./screenshots/disconnected.png) |
-| **Connecting Wallet** | ![Connecting Wallet](./screenshots/connecting.png) |
-| **Transaction Signature Request** | ![Transaction Popup](./screenshots/transaction_popup1.png) |
-| **Transaction Successful** | ![Transaction Complete](./screenshots/transaction%20complete.png) |
+ ![Landing Page](./src/assets/Stellar-dApp-front.png) 
+ | | | | |
+|---|---|---|---|
+ ![Dashboard](./screenshots/dashboard.png) | ![Wallet Selection](./screenshots/disconnected.png) | ![Connecting Wallet](./screenshots/connecting.png) | ![Transaction Popup](./screenshots/transaction_popup1.png) |
 
 ---
 
@@ -55,31 +38,20 @@ The system is built on two distinct, interlocking Soroban smart contracts operat
 1. **CrowdfundContract (`CANOYAM53...7AYA`)**: The core escrow vault. It securely locks contributed XLM, tracks deadline timestamps and goal thresholds, manages donor contribution ledgers, and enables creator withdrawals or automated refunds.
 2. **RewardBadge Contract (`CAA3IZ7SV...WISD`)**: An auxiliary on-chain badge/reputation contract. When a backer contributes $\ge 100\text{ XLM}$, the `CrowdfundContract` directly performs an **inter-contract invocation** to `award_badge()` in the donor's account.
 
-```
-                  ┌────────────────────────────────────────┐
-                  │           Backer / Donor               │
-                  └──────────────────┬─────────────────────┘
-                                     │ 1. donate(100 XLM)
-                                     ▼
-                  ┌────────────────────────────────────────┐
-                  │          CrowdfundContract             │
-                  │   - Verifies active deadline           │
-                  │   - Holds XLM in trustless escrow      │
-                  │   - Updates contribution state         │
-                  └──────────────────┬─────────────────────┘
-                                     │ 2. Cross-contract call:
-                                     │    award_badge(donor, tier=1)
-                                     ▼
-                  ┌────────────────────────────────────────┐
-                  │         RewardBadge Contract           │
-                  │   - Mints "Top Supporter" Badge        │
-                  │   - Emits badge awarded event          │
-                  └────────────────────────────────────────┘
+```mermaid
+flowchart TD
+    A["Backer / Donor"] -->|"1. donate(100 XLM)"| B["CrowdfundContract"]
+    B -->|"Verifies active deadline"| B
+    B -->|"Holds XLM in trustless escrow"| B
+    B -->|"Updates contribution state"| B
+    B -->|"2. Cross-contract call: award_badge(donor, tier=1)"| C["RewardBadge Contract"]
+    C -->|"Mints 'Top Supporter' Badge"| C
+    C -->|"Emits badge awarded event"| C
 ```
 
 ### ⚖️ Critical Design Decision: Cross-Contract Error Handling
 > **Tradeoff Rationale:** In `CrowdfundContract::donate()`, the cross-contract call to `RewardBadge` is wrapped using `env.try_invoke_contract()`. If the badge contract runs out of gas, is upgraded, or fails, the core donation **does not roll back**.
-> 
+>
 > *Financial integrity is prioritized over ancillary gamification:* a donor's financial pledge must succeed reliably even if non-critical reward metadata encounters transient issues.
 
 ---
@@ -111,16 +83,71 @@ EscrowCrowd includes an integrated **Contract Transparency Panel** directly in t
 ---
 
 ### 1. Centralized Contract Factory (Implemented)
-To solve the issue of contract upgradability and fragmentation, EscrowCrowd now uses a **Factory Contract Pattern**. Instead of users individually deploying contracts, the Factory maintains the latest, most secure WASM hash and deploys instances natively on-chain. 
+To solve the issue of contract upgradability and fragmentation, EscrowCrowd now uses a **Factory Contract Pattern**. Instead of users individually deploying contracts, the Factory maintains the latest, most secure WASM hash and deploys instances natively on-chain.
 - **Global Discovery:** The Factory maintains a registry of all deployed campaigns and their metadata, allowing the frontend to dynamically list every active campaign.
 - **RewardBadge Hardening:** The `RewardBadge` contract now enforces a caller allowlist. Only campaigns legitimately deployed and registered by the Factory are authorized to mint badges, elegantly closing a major security gap.
 
 ### 2. Hybrid Real-Time Event Indexing (Implemented)
-Initially, the frontend queried the Stellar RPC directly to discover campaigns and poll for donation events. However, polling scales poorly with thousands of users. 
+Initially, the frontend queried the Stellar RPC directly to discover campaigns and poll for donation events. However, polling scales poorly with thousands of users.
 
 To solve this, EscrowCrowd implements a **hybrid architecture**:
 - **Centralized Speed (Node.js Backend):** A lightweight `backend/server.js` acts as an indexer, constantly tailing the Stellar ledger for contract events. When a donation occurs, it instantly pushes a `new_donation` event via **Socket.IO** to connected clients, resulting in snappy, zero-latency UI updates for the Activity Feed and Campaign Progress bars.
 - **Decentralized Reliability (RPC Fallback):** The React frontend is built with graceful degradation. If the backend server goes down, the frontend automatically switches back to decentralized RPC polling. The UI never goes stale, prioritizing decentralization and reliability while optimizing for UX.
+
+---
+
+## ⚡ Gasless Donations (Fee-Bump Relayer)
+
+To remove friction for new users who may not have enough XLM to cover transaction fees and the minimum account reserve, EscrowCrowd implements a **Gasless Donation Flow** utilizing Stellar's native `FeeBumpTransaction`.
+
+This architecture allows the platform to sponsor transaction fees while maintaining a completely **trustless, non-custodial** guarantee for user funds.
+
+### 1. Normal Donation Flow
+
+In a standard transaction, the user pays both the donation amount and the network fee from their own wallet:
+
+```mermaid
+sequenceDiagram
+    participant U as Browser (User Wallet)
+    participant S as Stellar Network
+    U->>U: 1. Build & Simulate Tx
+    U->>U: 2. Sign Tx (User pays 10 XLM + Fee)
+    U->>S: 3. Submit
+    S->>S: Validates signature & fee
+    S-->>U: confirms
+```
+
+### 2. Gasless Donation Flow (Fee Sponsorship)
+
+In the gasless flow, the user still signs the core transaction (proving they authorized the transfer of their 10 XLM), but the backend wraps it in a fee-bump envelope signed by the platform's sponsor account. The platform pays the fee, but the backend never holds the user's funds.
+
+```mermaid
+sequenceDiagram
+    participant U as Browser (User)
+    participant B as Backend (Relayer)
+    participant S as Stellar Network
+    U->>U: 1. Build & Simulate
+    U->>U: 2. Sign INNER Tx (Authorizes 10 XLM)
+    U->>B: 3. POST /api/sponsor-tx
+    B->>B: Decode & Validate XDR
+    Note over B: Check whitelist & function
+    Note over B: Verify fee ceiling
+    Note over B: Confirm timebounds
+    Note over B: Reject unexpected auth
+    B->>B: Server-side Re-simulation (Guards against drain attacks)
+    B->>B: Rate Limiting (IP + Wallet)
+    B->>B: Wrap in FeeBumpTransaction
+    B->>B: Sign OUTER Tx (Sponsor Key - Authorizes Fee Payment)
+    B->>S: Submit
+    S->>S: confirms
+    S-->>B: confirms
+    B-->>U: Returns { txHash }
+```
+
+### Security & Limits
+- **Server-Side Re-Simulation:** The backend re-simulates the user's signed XDR before signing the fee-bump to ensure the transaction will succeed, preventing attackers from draining the sponsor's balance with failing transactions.
+- **Strict Validation:** The backend enforces an 8-point validation checklist (e.g., exactly one operation, must be `invokeHostFunction`, contract must be in `WHITELISTED_CONTRACTS`, function must be `donate`).
+- **Sliding-Window Rate Limiting:** Enforced per IP address and per wallet address to prevent spam.
 
 ---
 
