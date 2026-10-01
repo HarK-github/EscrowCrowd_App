@@ -3,7 +3,7 @@ import { motion } from 'framer-motion';
 import { Wallet, Loader2, ArrowRight } from "lucide-react";
 import { FaGithub, FaTwitter, FaLinkedin } from 'react-icons/fa';
 import { useNavigate } from 'react-router-dom';
-import { useStellar } from '../hooks/useStellar';
+import { useStellar } from '../context/StellarContext';
 import glassAnim from '../assets/glassanim.mp4';
 import demoPic from '../assets/Stellar-dApp-front.png';
 import { Navbar } from '../components/Navbar';

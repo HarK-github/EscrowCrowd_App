@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, Rocket, AlertTriangle, Loader2, CheckCircle2, Copy, ExternalLink } from 'lucide-react';
-import { useStellar } from '../hooks/useStellar';
+import { useStellar } from '../context/StellarContext';
 import { useFactoryContract } from '../hooks/useFactoryContract';
 import { getExplorerContractUrl } from '../config';
 

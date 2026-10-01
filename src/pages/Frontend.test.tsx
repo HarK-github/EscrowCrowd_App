@@ -5,7 +5,7 @@ import '@testing-library/jest-dom';
 import { BrowserRouter } from 'react-router-dom';
 import { LandingPage } from './LandingPage';
 import { DashboardPage } from './DashboardPage';
-import * as UseStellarModule from '../hooks/useStellar';
+import * as UseStellarModule from '../context/StellarContext';
 
 global.IntersectionObserver = class IntersectionObserver {
   observe() { return null; }
@@ -18,11 +18,8 @@ vi.mock("../components/Toast", () => ({
   useToast: vi.fn(() => ({ toast: vi.fn() })),
 }));
 
-vi.mock('../hooks/useStellar', () => ({
-  useStellar: vi.fn(),
-}));
-
 vi.mock('../context/StellarContext', () => ({
+  useStellar: vi.fn(),
   StellarProvider: ({ children }: any) => <div>{children}</div>,
   CONTRACT_ID: 'MOCK_CONTRACT_ID',
   NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015',

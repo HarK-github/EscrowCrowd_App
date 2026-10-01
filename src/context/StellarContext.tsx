@@ -1,5 +1,5 @@
 /* eslint-disable react-refresh/only-export-components */
-import React, { createContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from "react";
 import { io, type Socket } from 'socket.io-client';
 import { StellarWalletsKit, Networks } from '@creit.tech/stellar-wallets-kit';
 import { FreighterModule } from '@creit.tech/stellar-wallets-kit/modules/freighter';
@@ -92,15 +92,19 @@ export function StellarProvider({ children }: { children: ReactNode }) {
     });
 
     socket.on('new_donation', (donation: {
-      campaignId: string;
+      campaignId: string | any;
       donor: string;
       amount: string;
       ledger: number;
       txHash: string;
       timestamp: string;
     }) => {
+      const incomingId = typeof donation.campaignId === 'string'
+        ? donation.campaignId
+        : (donation.campaignId?.contractId ? donation.campaignId.contractId() : String(donation.campaignId));
+
       // We only care if it belongs to the currently viewed campaign
-      if (activeContractId === donation.campaignId) {
+      if (!activeContractId || activeContractId === incomingId) {
         setRecentDonations((prev) => {
           const alreadyHave = prev.some((d) => d.id === donation.txHash);
           if (alreadyHave) return prev;
@@ -116,9 +120,12 @@ export function StellarProvider({ children }: { children: ReactNode }) {
         });
 
         // Refetch the campaign state to update totalRaised and progress bar
-        fetchCampaignStateData(donation.campaignId).then((state) => {
-          if (state) setCampaign(state);
-        });
+        const targetId = activeContractId || incomingId;
+        if (targetId) {
+          fetchCampaignStateData(targetId).then((state) => {
+            if (state) setCampaign(state);
+          });
+        }
       }
     });
 
@@ -359,4 +366,12 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       {children}
     </StellarContext.Provider>
   );
+}
+
+export function useStellar() {
+  const context = useContext(StellarContext);
+  if (context === undefined) {
+    throw new Error('useStellar must be used within a StellarProvider');
+  }
+  return context;
 }

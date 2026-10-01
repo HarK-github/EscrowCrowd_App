@@ -272,6 +272,98 @@ export const useCrowdfundingContract = (activeContractId: string) => {
   );
 
   /**
+   * Gasless donation: builds and signs the inner Soroban transaction as the user,
+   * then hands the signed XDR to the backend relayer to wrap in a FeeBumpTransaction.
+   * The user still signs with their wallet (they remain the inner source account and
+   * their source-account auth covers require_auth(donor) in the contract).
+   * Only the fee is sponsored — the donated XLM must exist in the user's account.
+   *
+   * Returns txHash on success. Throws on validation or network failure.
+   */
+  const donateGasless = useCallback(
+    async (
+      pubKey: string,
+      amountStr: string,
+      onStatusChange?: (msg: string) => void
+    ): Promise<string> => {
+      const parsedAmount = parseFloat(amountStr);
+      if (isNaN(parsedAmount) || parsedAmount <= 0) {
+        throw new Error('Donation amount must be greater than 0 XLM.');
+      }
+
+      setIsSubmitting(true);
+      try {
+        if (onStatusChange) onStatusChange('Preparing transaction...');
+        const contract = new Contract(activeContractId);
+        const amountStroops = Math.floor(parsedAmount * 10000000).toString();
+        const operation = contract.call(
+          'donate',
+          nativeToScVal(pubKey, { type: 'address' }),
+          nativeToScVal(amountStroops, { type: 'i128' })
+        );
+
+        // Build, simulate, and assemble — identical to executeTransaction() up to signing
+        const sourceAccount = await server.loadAccount(pubKey);
+        let transaction = new TransactionBuilder(sourceAccount, {
+          fee: '100',
+          networkPassphrase: NETWORK_PASSPHRASE,
+        })
+          .addOperation(operation)
+          // Short time bound required by the backend validator (max 5 minutes)
+          .setTimeout(4 * 60)
+          .build();
+
+        const simRes = await rpcServer.simulateTransaction(transaction);
+        if (rpc.Api.isSimulationError(simRes)) {
+          throw new Error(
+            typeof simRes.error === 'string' ? simRes.error : JSON.stringify(simRes.error)
+          );
+        }
+        if (!rpc.Api.isSimulationSuccess(simRes)) {
+          throw new Error('Transaction simulation failed.');
+        }
+
+        transaction = rpc.assembleTransaction(transaction, simRes).build();
+
+        // User signs as the inner source account.
+        // They will NOT pay the fee — the sponsor's fee-bump covers it.
+        if (onStatusChange) onStatusChange('Please sign in your wallet...');
+        const signResponse = await StellarWalletsKit.signTransaction(transaction.toXdr(), {
+          networkPassphrase: NETWORK_PASSPHRASE,
+        });
+        if (!signResponse?.signedTxXdr) {
+          throw new Error('Transaction signing was rejected or cancelled.');
+        }
+
+        // Send signed XDR to the backend relayer
+        if (onStatusChange) onStatusChange('Submitting via gas sponsor...');
+        const backendUrl = import.meta.env.VITE_BACKEND_URL;
+        if (!backendUrl) throw new Error('Backend URL not configured (VITE_BACKEND_URL).');
+
+        const relayRes = await fetch(`${backendUrl}/api/sponsor-tx`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ innerTxXdr: signResponse.signedTxXdr, userAddress: pubKey }),
+        });
+
+        const relayData = await relayRes.json();
+        if (!relayRes.ok) {
+          // Propagate fallback flag so DashboardPage can retry as normal donation
+          const err: any = new Error(relayData.error || 'Sponsorship failed.');
+          err.fallback = relayData.fallback ?? false;
+          err.status = relayRes.status;
+          throw err;
+        }
+
+        return relayData.txHash as string;
+      } finally {
+        setIsSubmitting(false);
+      }
+    },
+    [activeContractId]
+  );
+
+  /**
    * Withdraws funds from the campaign to the creator.
    */
   const withdraw = useCallback(
@@ -378,6 +470,7 @@ export const useCrowdfundingContract = (activeContractId: string) => {
 
   return {
     donate,
+    donateGasless,
     withdraw,
     deployAndCreateCampaign,
     isSubmitting,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2, ShieldCheck } from 'lucide-react';
+import { Wallet, Send, ExternalLink, Activity, Trophy, Clock, Target, CheckCircle2, XCircle, Loader2, ShieldCheck, Zap } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { useStellar } from '../hooks/useStellar';
+import { useStellar } from '../context/StellarContext';
 import { useCrowdfundingContract, TxStatus } from '../hooks/useCrowdfundingContract';
 import noLoopAnim from '../assets/noloopanim.mp4';
 import { rpcServer } from '../config';
@@ -12,10 +12,14 @@ import { Navbar } from '../components/Navbar';
 export function DashboardPage() {
   const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId, customCampaigns } = useStellar();
   const { toast } = useToast();
-  const { donate, withdraw, isSubmitting, fetchContractBalance } = useCrowdfundingContract(activeContractId);
+  const { donate, donateGasless, withdraw, isSubmitting, fetchContractBalance } = useCrowdfundingContract(activeContractId);
   const navigate = useNavigate();
 
   const [isWithdrawing, setIsWithdrawing] = useState(false);
+
+  // Gasless sponsorship state
+  const [isGaslessMode, setIsGaslessMode] = useState(false);
+  const [sponsorAvailable, setSponsorAvailable] = useState(false);
 
   const [amount, setAmount] = useState('10');
   const [txStatus, setTxStatus] = useState<TxStatus>('idle');
@@ -35,6 +39,16 @@ export function DashboardPage() {
     }
     checkBalance();
   }, [activeContractId, campaign, fetchContractBalance]);
+
+  // Check whether the gas sponsor is currently available
+  useEffect(() => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL;
+    if (!backendUrl) return;
+    fetch(`${backendUrl}/api/sponsor-status`)
+      .then((r) => r.json())
+      .then((d) => setSponsorAvailable(!!d.available))
+      .catch(() => setSponsorAvailable(false));
+  }, []);
   useEffect(() => {
     if (!pubKey) {
       navigate('/');
@@ -77,8 +91,12 @@ export function DashboardPage() {
     if (!amount) return null;
     const parsedAmount = parseFloat(amount);
     if (parsedAmount <= 0) return "Amount must be greater than 0.";
-    if (balance === "Not Funded" || parseFloat(balance || "0") < parsedAmount) {
-      return "Insufficient XLM balance for this transaction.";
+    // Skip balance check in gasless mode — the user won't pay gas, but still needs the donation amount.
+    // We rely on the server-side balance check for the final guard.
+    if (!isGaslessMode) {
+      if (balance === "Not Funded" || parseFloat(balance || "0") < parsedAmount) {
+        return "Insufficient XLM balance for this transaction.";
+      }
     }
     if (campaign && campaign.status === 'active') {
       const remaining = campaign.goal - campaign.totalRaised;
@@ -87,7 +105,7 @@ export function DashboardPage() {
       }
     }
     return null;
-  }, [amount, balance, campaign]);
+  }, [amount, balance, campaign, isGaslessMode]);
 
   const isPending = isSubmitting || txStatus === 'preparing' || txStatus === 'signing' || txStatus === 'confirming';
 
@@ -111,17 +129,37 @@ export function DashboardPage() {
     setTxMessage('Preparing transaction...');
     setTxHash('');
 
-    try {
-      const hash = await donate(pubKey, amount, (msg) => {
-        setTxMessage(msg);
-        if (msg.includes('sign')) {
-          setTxStatus('signing');
-        } else if (msg.includes('Submitting')) {
-          setTxStatus('confirming');
-        }
-      });
+    const statusHandler = (msg: string) => {
+      setTxMessage(msg);
+      if (msg.includes('sign')) setTxStatus('signing');
+      else if (msg.includes('Submitting') || msg.includes('sponsor')) setTxStatus('confirming');
+    };
 
-      // Simulate the sendRes object structure to keep the existing confirmation loop intact
+    try {
+      let hash: string;
+
+      if (isGaslessMode) {
+        try {
+          hash = await donateGasless(pubKey, amount, statusHandler);
+        } catch (gaslessErr: any) {
+          // Graceful fallback: if sponsor is rate-limited (429) or unavailable (503),
+          // retry automatically as a normal paid transaction.
+          if (gaslessErr.fallback) {
+            toast(
+              'Gas sponsorship limit reached — submitting as a normal paid transaction.',
+              'info'
+            );
+            setIsGaslessMode(false);
+            hash = await donate(pubKey, amount, statusHandler);
+          } else {
+            throw gaslessErr;
+          }
+        }
+      } else {
+        hash = await donate(pubKey, amount, statusHandler);
+      }
+
+      // ── Confirmation polling (identical for both paths) ──────────────────
       const sendRes = { status: 'PENDING', hash };
 
       if (sendRes.status === 'PENDING') {
@@ -134,7 +172,6 @@ export function DashboardPage() {
         }
         if (getTxRes.status === 'SUCCESS') {
           const donatedAmount = parseFloat(amount);
-          // Immediately populate both Activity Feed and My Transactions
           addDonationEvent({
             id: sendRes.hash,
             donor: pubKey,
@@ -146,7 +183,12 @@ export function DashboardPage() {
           setTxHash(sendRes.hash);
           fetchBalance(pubKey);
           setAmount('');
-          toast("Donation successful!", "success");
+          toast(
+            isGaslessMode
+              ? 'Donation successful! (Gas sponsored by EscrowCrowd)'
+              : 'Donation successful!',
+            'success'
+          );
           fetchCampaignState();
         } else {
           throw new Error('Transaction failed on network.');
@@ -158,7 +200,7 @@ export function DashboardPage() {
       console.error(err);
       setTxStatus('error');
       setTxMessage(err?.message || 'Transaction failed');
-      toast(err?.message || "Transaction failed", "error");
+      toast(err?.message || 'Transaction failed', 'error');
     }
   };
 
@@ -402,6 +444,24 @@ export function DashboardPage() {
                   </div>
                 )}
 
+                {/* Gasless Toggle — shown only when sponsor is available */}
+                {sponsorAvailable && (
+                  <button
+                    type="button"
+                    disabled={isPending || (campaign && campaign.status !== 'active')}
+                    onClick={() => setIsGaslessMode((v) => !v)}
+                    className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                      isGaslessMode
+                        ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400'
+                        : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
+                    }`}
+                    title={isGaslessMode ? 'Click to pay gas yourself' : 'Let EscrowCrowd pay your transaction fee'}
+                  >
+                    <Zap size={12} className={isGaslessMode ? 'fill-yellow-400' : ''} />
+                    {isGaslessMode ? 'Gas sponsored ✓' : 'Sponsor my gas'}
+                  </button>
+                )}
+
                 <button
                   type="submit"
                   disabled={isPending || !!inlineError || !amount}
@@ -417,6 +477,8 @@ export function DashboardPage() {
                     <><CheckCircle2 size={18} className="shrink-0" /> Donation Successful</>
                   ) : txStatus === 'error' ? (
                     <><XCircle size={18} className="shrink-0" /> Retry Donation</>
+                  ) : isGaslessMode ? (
+                    <><Zap size={16} className="shrink-0" /> Donate Now (Gas Sponsored)</>
                   ) : (
                     'Donate Now'
                   )}

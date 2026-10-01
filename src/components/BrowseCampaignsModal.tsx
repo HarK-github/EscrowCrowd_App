@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useStellar } from '../hooks/useStellar';
+import { useStellar } from '../context/StellarContext';
 import { Compass, Rocket, Loader2, ArrowRight, X } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { fetchCampaignStateData, CampaignState } from '../hooks/useCrowdfundingContract';
