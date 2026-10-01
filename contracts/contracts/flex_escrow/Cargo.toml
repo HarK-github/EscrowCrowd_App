@@ -1,5 +1,5 @@
 [package]
-name = "crowdfund"
+name = "flex_escrow"
 version = "0.0.0"
 edition = "2021"
 publish = false
@@ -10,8 +10,6 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-reward-badge = { path = "../reward_badge" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
-

@@ -96,9 +96,9 @@ impl CrowdfundContract {
         // Try to award badge if threshold is met
         if current_donation >= 1_000_000_000 {
             if let Some(badge_contract_id) = env.storage().instance().get::<_, Address>(&DataKey::BadgeContract) {
-                let badge_client = reward_badge::Client::new(&env, &badge_contract_id);
+                let badge_client = reward_badge::RewardBadgeContractClient::new(&env, &badge_contract_id);
                 // Award tier 1 badge; try_award_badge will not panic the current transaction if it fails
-                let _ = badge_client.try_award_badge(&donor, &1u32);
+                let _ = badge_client.try_award_badge(&env.current_contract_address(), &donor, &1u32);
             }
         }
         
