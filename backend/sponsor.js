@@ -20,7 +20,7 @@ const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || Networks.TE
 
 // Max fee the sponsor will pay for a single transaction (0.1 XLM = 1,000,000 stroops).
 // Soroban resource fees are typically 200-5,000 stroops for a donate() call on testnet.
-const CEILING_STROOPS = 1_000_000;
+const CEILING_STROOPS = 100_000_000;
 
 // Max time-bound window allowed on the inner transaction (5 minutes).
 const MAX_WINDOW_SEC = 5 * 60;
@@ -181,7 +181,7 @@ export async function validateInnerTx(innerTxXdr, userAddress) {
 
   // ⑦b Inner fee must not exceed the ceiling
   if (Number(innerTx.fee) > CEILING_STROOPS) {
-    throw new Error(`Declared fee ${innerTx.fee} stroops exceeds sponsorship ceiling of ${CEILING_STROOPS} stroops (0.1 XLM).`);
+    throw new Error(`Declared fee ${innerTx.fee} stroops exceeds sponsorship ceiling of ${CEILING_STROOPS} stroops (10 XLM).`);
   }
 
   // ⑧ Auth entries — no unexpected sub-contract invocations

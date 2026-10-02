@@ -326,7 +326,6 @@ dependencies = [
 name = "crowdfund"
 version = "0.0.0"
 dependencies = [
- "reward-badge",
  "soroban-sdk",
 ]
 
@@ -1275,13 +1274,6 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 3.0.4",
-]
-
-[[package]]
-name = "reward-badge"
-version = "0.0.0"
-dependencies = [
- "soroban-sdk",
 ]
 
 [[package]]

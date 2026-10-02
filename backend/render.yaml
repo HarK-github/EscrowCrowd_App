@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: escrow-backend
+    env: node
+    buildCommand: npm install
+    startCommand: node worker.js & node server.js
+    envVars:
+      - key: PORT
+        value: 3005
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: escrow-redis
+          property: connectionString
+      - key: SPONSOR_SECRET_KEY
+        sync: false
+      - key: WHITELISTED_CONTRACTS
+        sync: false

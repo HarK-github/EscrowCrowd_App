@@ -10,7 +10,6 @@ doctest = false
 
 [dependencies]
 soroban-sdk = { workspace = true }
-reward-badge = { path = "../reward_badge" }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }

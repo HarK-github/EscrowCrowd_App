@@ -12,7 +12,6 @@ pub enum DataKey {
     TotalRaised,
     Token,
     Donation(Address),
-    BadgeContract,
 }
 
 #[contracttype]
@@ -93,14 +92,6 @@ impl CrowdfundContract {
             amount
         );
 
-        // Try to award badge if threshold is met
-        if current_donation >= 1_000_000_000 {
-            if let Some(badge_contract_id) = env.storage().instance().get::<_, Address>(&DataKey::BadgeContract) {
-                let badge_client = reward_badge::RewardBadgeContractClient::new(&env, &badge_contract_id);
-                // Award tier 1 badge; try_award_badge will not panic the current transaction if it fails
-                let _ = badge_client.try_award_badge(&env.current_contract_address(), &donor, &1u32);
-            }
-        }
         
         env.storage().instance().extend_ttl(100_000, 100_000);
     }
@@ -164,15 +155,5 @@ impl CrowdfundContract {
         
         // Transfer all raised funds to the creator
         token_client.transfer(&env.current_contract_address(), &creator, &total_raised);
-    }
-
-    /// Link the RewardBadge contract to this campaign
-    pub fn set_badge_contract(env: Env, creator: Address, badge_contract: Address) {
-        creator.require_auth();
-        let stored_creator: Address = env.storage().instance().get(&DataKey::Creator).expect("not initialized");
-        if creator != stored_creator {
-            panic!("Only creator can set badge contract");
-        }
-        env.storage().instance().set(&DataKey::BadgeContract, &badge_contract);
     }
 }
