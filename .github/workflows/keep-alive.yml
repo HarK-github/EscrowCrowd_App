@@ -1,0 +1,17 @@
+name: Keep Alive
+
+on:
+  schedule:
+    # Runs every day at midnight (UTC)
+    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual triggering from the GitHub Actions tab
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Frontend
+        run: curl -sL -w "%{http_code}" "https://escrow-crowd.vercel.app" -o /dev/null
+
+      - name: Ping Backend
+        run: curl -sL -w "%{http_code}" "https://escrow-backend-tj90.onrender.com" -o /dev/null
