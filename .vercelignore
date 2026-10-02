@@ -1,0 +1,5 @@
+node_modules
+contracts/target
+.soroban
+.stellar
+backend/node_modules
