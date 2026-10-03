@@ -1,155 +1,77 @@
 // backend/worker.js
-// Serialized settlement worker (concurrency: 1) preventing Stellar txBAD_SEQ sequence collisions.
+// Serialized worker for gas-sponsored transactions (concurrency: 1)
+// Prevents Soroban Testnet RPC 429 rate limit congestion.
 import { Worker } from 'bullmq';
-import {
-  Keypair,
-  TransactionBuilder,
-  Contract,
-  rpc,
-  nativeToScVal,
-  Networks,
-} from '@stellar/stellar-sdk';
-import { streamQueue, redisConnection } from './queue.js';
-import { recordSettlement, getStreamSnapshot } from './streams.js';
+import { rpc } from '@stellar/stellar-sdk';
+import { sponsorQueue, redisConnection, QUEUE_NAME } from './queue.js';
+import { validateInnerTx, buildFeeBump } from './sponsor.js';
 
-const QUEUE_NAME = 'stream-queue';
 const RPC_URL = process.env.RPC_URL || 'https://soroban-testnet.stellar.org';
-const NETWORK_PASSPHRASE = process.env.STELLAR_NETWORK_PASSPHRASE || Networks.TESTNET;
-
-export function getOperatorKeypair() {
-  const secret = process.env.OPERATOR_SECRET_KEY;
-  if (secret && secret.startsWith('S')) {
-    return Keypair.fromSecret(secret);
-  }
-  // Development fallback
-  return Keypair.random();
-}
 
 /**
- * Process a single settlement job.
+ * Process a single sponsored transaction job.
  */
-export async function processSettlementJob(job, io = null) {
-  const { streamId, claimAmount, contractId } = job.data;
-  console.log(`[Worker] Processing settlement for stream ${streamId}, amount: ${claimAmount} stroops`);
-
-  const operator = getOperatorKeypair();
-
-  // If no contractId is specified, record settlement locally and broadcast
-  if (!contractId) {
-    console.log(`[Worker] No contractId specified; recording settlement locally`);
-    recordSettlement(streamId, claimAmount);
-    if (io) {
-      const snap = getStreamSnapshot(streamId);
-      io.to(`stream:${streamId}`).emit('stream:settled', {
-        streamId,
-        claimAmount,
-        snapshot: snap,
-      });
-    }
-    return { simulated: true, streamId, claimAmount };
-  }
+export async function processSponsorJob(job) {
+  const { innerTxXdr, userAddress } = job.data;
+  console.log(`[Worker] Processing sponsored transaction for ${userAddress}`);
 
   const rpcServer = new rpc.Server(RPC_URL);
 
-  // 1. Fetch operator account sequence
-  let account;
-  try {
-    account = await rpcServer.getAccount(operator.publicKey());
-  } catch (err) {
-    throw new Error(`Failed to load operator account ${operator.publicKey()}: ${err.message}`);
-  }
+  // 1. Validate & simulate inner transaction
+  const innerTx = await validateInnerTx(innerTxXdr, userAddress);
 
-  // 2. Build settle_stream transaction
-  const contract = new Contract(contractId);
-  const callOp = contract.call(
-    'settle_stream',
-    nativeToScVal(operator.publicKey(), { type: 'address' }),
-    nativeToScVal(BigInt(streamId), { type: 'u64' }),
-    nativeToScVal(BigInt(claimAmount), { type: 'i128' })
-  );
+  // 2. Build and sign fee-bump transaction
+  const feeBump = buildFeeBump(innerTx);
 
-  const tx = new TransactionBuilder(account, {
-    fee: '1000',
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
-    .addOperation(callOp)
-    .setTimeout(30)
-    .build();
-
-  // 3. Simulate transaction to obtain footprint and auth
-  const simRes = await rpcServer.simulateTransaction(tx);
-  if (rpc.Api.isSimulationError(simRes)) {
-    throw new Error(`Simulation failed: ${simRes.error}`);
-  }
-
-  // 4. Assemble and sign
-  const preparedTx = rpc.assembleTransaction(tx, simRes).build();
-  preparedTx.sign(operator);
-
-  // 5. Send transaction
-  const sendRes = await rpcServer.sendTransaction(preparedTx);
+  // 3. Send transaction to Soroban RPC
+  const sendRes = await rpcServer.sendTransaction(feeBump);
   if (sendRes.status === 'ERROR') {
-    throw new Error(`Transaction send error: ${JSON.stringify(sendRes.errorResult)}`);
+    throw new Error('Fee-bump transaction rejected by Stellar network.');
   }
 
-  const txHash = sendRes.hash;
-  console.log(`[Worker] Transaction submitted: ${txHash}. Awaiting confirmation...`);
-
-  // 6. Poll for completion
-  let statusRes = await rpcServer.getTransaction(txHash);
-  let pollAttempts = 0;
-  while (statusRes.status === 'NOT_FOUND' && pollAttempts < 10) {
-    await new Promise((res) => setTimeout(res, 2000));
-    statusRes = await rpcServer.getTransaction(txHash);
-    pollAttempts++;
+  // 4. Poll for confirmation
+  let getTxRes = await rpcServer.getTransaction(sendRes.hash);
+  let attempts = 0;
+  while (getTxRes.status === 'NOT_FOUND' && attempts < 15) {
+    await new Promise((r) => setTimeout(r, 2000));
+    getTxRes = await rpcServer.getTransaction(sendRes.hash);
+    attempts++;
   }
 
-  if (statusRes.status !== 'SUCCESS') {
-    throw new Error(`Transaction ${txHash} did not succeed: status ${statusRes.status}`);
+  if (getTxRes.status !== 'SUCCESS') {
+    throw new Error(`Sponsored transaction failed with status: ${getTxRes.status}`);
   }
 
-  // 7. Update local state and broadcast
-  recordSettlement(streamId, claimAmount);
-  if (io) {
-    const snap = getStreamSnapshot(streamId);
-    io.to(`stream:${streamId}`).emit('stream:settled', {
-      streamId,
-      claimAmount,
-      txHash,
-      snapshot: snap,
-    });
-  }
-
-  console.log(`[Worker] Settlement confirmed on-chain for stream ${streamId}, tx: ${txHash}`);
-  return { success: true, txHash, streamId, claimAmount };
+  console.log(`[Worker] Sponsored transaction confirmed: ${sendRes.hash}`);
+  return { success: true, txHash: sendRes.hash };
 }
 
 /**
- * Start the settlement queue worker.
+ * Start the sponsor queue worker.
  */
-export function startWorker(io = null) {
-  if (redisConnection && streamQueue?.name === QUEUE_NAME) {
+export function startWorker() {
+  if (redisConnection && sponsorQueue?.name === QUEUE_NAME) {
     const worker = new Worker(
       QUEUE_NAME,
-      async (job) => processSettlementJob(job, io),
+      async (job) => processSponsorJob(job),
       {
         connection: redisConnection,
-        concurrency: 1, // Strict serialization prevents sequence collisions
+        concurrency: 1, // Concurrency 1 shields Soroban RPC from rate limits
       }
     );
 
     worker.on('completed', (job) => {
-      console.log(`[BullMQ] Settlement job ${job.id} completed successfully`);
+      console.log(`[BullMQ] Sponsor job ${job.id} completed successfully`);
     });
 
     worker.on('failed', (job, err) => {
-      console.error(`[BullMQ] Settlement job ${job?.id} failed:`, err.message);
+      console.error(`[BullMQ] Sponsor job ${job?.id} failed:`, err.message);
     });
 
     return worker;
-  } else if (streamQueue?.setWorker) {
-    streamQueue.setWorker(async (job) => processSettlementJob(job, io));
-    console.log('[Worker] In-memory worker registered with concurrency: 1');
-    return streamQueue;
+  } else if (sponsorQueue?.setWorker) {
+    sponsorQueue.setWorker(async (job) => processSponsorJob(job));
+    console.log('[Worker] In-memory sponsor worker registered with concurrency: 1');
+    return sponsorQueue;
   }
 }

@@ -1,57 +1,59 @@
 // backend/queue.test.js
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { enqueueSettlement, streamQueue } from './queue.js';
-import { createStream, getStreamSnapshot } from './streams.js';
-import { processSettlementJob } from './worker.js';
+import { enqueueSponsorTx, sponsorQueue } from './queue.js';
+import { startWorker } from './worker.js';
 
-test('Queue & Worker Subsystem', async (t) => {
-  await t.test('1. Deduplication drops duplicate settlement jobs within same epoch', async () => {
-    const stream = createStream({
-      streamId: 'dedup-stream-1',
-      totalDeposit: 50_000_000n,
-      durationSec: 100n,
-      startTime: 1000,
+test('Sponsor Queue & Worker Subsystem', async (t) => {
+  await t.test('1. Sequential execution through in-memory queue', async () => {
+    const executedOrder = [];
+
+    // Temporarily replace worker handler on the in-memory queue
+    sponsorQueue.setWorker(async (job) => {
+      executedOrder.push(`start:${job.data.id}`);
+      await new Promise((r) => setTimeout(r, 20));
+      executedOrder.push(`end:${job.data.id}`);
+      return { success: true, txHash: `hash-${job.data.id}` };
     });
 
-    const job1 = await enqueueSettlement({
-      streamId: 'dedup-stream-1',
-      claimAmount: '10000000',
-    });
-    assert.ok(job1.id);
+    const p1 = sponsorQueue.add('sponsor_tx', { id: 1 });
+    const p2 = sponsorQueue.add('sponsor_tx', { id: 2 });
 
-    // Second call within same epoch
-    const job2 = await enqueueSettlement({
-      streamId: 'dedup-stream-1',
-      claimAmount: '10000000',
-    });
+    const [r1, r2] = await Promise.all([p1, p2]);
 
-    // In-memory queue flags deduplication
-    assert.equal(job2.deduplicated, true);
+    assert.equal(r1.result.txHash, 'hash-1');
+    assert.equal(r2.result.txHash, 'hash-2');
+    // Ensure serialization: job 1 finishes before job 2 starts
+    assert.deepEqual(executedOrder, ['start:1', 'end:1', 'start:2', 'end:2']);
   });
 
-  await t.test('2. Worker processes settlement and updates stream state locally', async () => {
-    const stream = createStream({
-      streamId: 'worker-stream-1',
-      totalDeposit: 100_000_000n,
-      durationSec: 100n,
-      startTime: 1000,
+  await t.test('2. enqueueSponsorTx propagates worker result', async () => {
+    sponsorQueue.setWorker(async (job) => {
+      assert.equal(job.data.userAddress, 'G_TEST_USER');
+      return { success: true, txHash: 'test-hash-xyz' };
     });
 
-    const mockJob = {
-      data: {
-        streamId: 'worker-stream-1',
-        claimAmount: '25000000',
-        contractId: null, // triggers local simulated record
-      },
-    };
+    const res = await enqueueSponsorTx({
+      innerTxXdr: 'mock-xdr',
+      userAddress: 'G_TEST_USER',
+    });
 
-    const result = await processSettlementJob(mockJob);
-    assert.equal(result.simulated, true);
-    assert.equal(stream.withdrawn, 25_000_000n);
+    assert.deepEqual(res, { success: true, txHash: 'test-hash-xyz' });
+  });
 
-    const snap = getStreamSnapshot('worker-stream-1', 1050);
-    assert.equal(snap.withdrawn, '25000000');
-    assert.equal(snap.claimable, '25000000'); // 50m earned - 25m withdrawn
+  await t.test('3. enqueueSponsorTx bubbles worker errors', async () => {
+    sponsorQueue.setWorker(async () => {
+      throw new Error('Simulation failed: Insufficient balance');
+    });
+
+    await assert.rejects(
+      () => enqueueSponsorTx({ innerTxXdr: 'mock-xdr', userAddress: 'G_TEST_USER' }),
+      /Simulation failed: Insufficient balance/
+    );
+  });
+
+  await t.test('4. startWorker registers handler on sponsorQueue', () => {
+    startWorker();
+    assert.ok(typeof sponsorQueue.workerHandler === 'function');
   });
 });

@@ -4,7 +4,7 @@
   "description": "Socket.io backend for EscrowCrowd",
   "main": "server.js",
   "scripts": {
-    "start": "node worker.js & node server.js",
+    "start": "node server.js",
     "dev": "node --watch server.js",
 
     "test": "node --test *.test.js"
