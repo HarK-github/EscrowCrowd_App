@@ -10,7 +10,6 @@ import {
   TransactionBuilder,
   Keypair,
   Networks,
-  Address,
   StrKey,
   rpc,
 } from '@stellar/stellar-sdk';

@@ -90,4 +90,4 @@ This project is configured with a GitHub Actions CI/CD pipeline (`.github/workfl
 - **Live Demo (Vercel/Netlify)**: `[Insert Your Link Here]`
 - **Demo Video (1-2 min)**: `[Insert Your Link Here]`
 
-*Note: Screenshots of the Mobile Responsive UI, Passing Tests, and CI/CD Pipeline running are attached in the repository as per the submission requirements.*
+*Note: Screenshots of the UI, Wallet Connection, and Transaction flows are available in the `public/screenshots/` directory as per the submission requirements.*

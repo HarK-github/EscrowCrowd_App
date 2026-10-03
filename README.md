@@ -13,9 +13,10 @@
 
 ## 🌟 Application Preview
  ![Landing Page](./src/assets/Stellar-dApp-front.png) 
- | | | | |
-|---|---|---|---|
- ![Dashboard](./screenshots/dashboard.png) | ![Wallet Selection](./screenshots/disconnected.png) | ![Connecting Wallet](./screenshots/connecting.png) | ![Transaction Popup](./screenshots/transaction_popup1.png) |
+
+| Dashboard | Wallet Selection | Connecting Wallet | Transaction Popup | Transaction Complete |
+|---|---|---|---|---|
+| ![Dashboard](./public/screenshots/dashboard.png) | ![Wallet Selection](./public/screenshots/disconnected.png) | ![Connecting Wallet](./public/screenshots/connecting.png) | ![Transaction Popup](./public/screenshots/transaction_popup1.png) | ![Transaction Complete](./public/screenshots/transaction%20complete.png) |
 
 ---
 

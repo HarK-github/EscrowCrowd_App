@@ -3,7 +3,7 @@
 // Run with: node --test sponsor.test.js
 // Uses node:test + node:assert (no extra deps).
 
-import { describe, it, before, after } from 'node:test';
+import { describe, it } from 'node:test';
 import assert from 'node:assert/strict';
 import { checkRateLimit } from './sponsor.js';
 
