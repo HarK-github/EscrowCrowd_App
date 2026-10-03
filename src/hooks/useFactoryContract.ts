@@ -5,9 +5,6 @@ import {
   nativeToScVal,
   rpc,
   scValToNative,
-  Account,
-  Keypair,
-  Networks,
 } from '@stellar/stellar-sdk';
 import { StellarWalletsKit } from '@creit.tech/stellar-wallets-kit';
 import { 
@@ -17,40 +14,17 @@ import {
   FACTORY_CONTRACT_ID,
   TESTNET_NATIVE_SAC,
 } from '../config';
-import { fetchCampaignStateData } from './useCrowdfundingContract';
-import { deployAndInitCrowdfund } from './useCrowdfundingContract';
+import {
+  deployAndInitCrowdfund,
+  dummyAccount,
+  submitTransaction,
+} from './useCrowdfundingContract';
 
 export interface CampaignSummary {
   address: string;
   creator: string;
   title: string;
   createdAt: number;
-}
-
-// Dummy account for simulation-only (read-only) calls
-function dummyAccount(): Account {
-  return new Account(Keypair.random().publicKey(), '0');
-}
-
-async function sendAndConfirm(
-  rpcSrv: typeof rpcServer,
-  signedXdr: string
-): Promise<void> {
-  const tx = TransactionBuilder.fromXdr(signedXdr, NETWORK_PASSPHRASE);
-  const sendRes = await rpcSrv.sendTransaction(tx as any);
-  if (sendRes.status === 'ERROR') {
-    throw new Error('Transaction submission failed.');
-  }
-  let status = await rpcSrv.getTransaction(sendRes.hash);
-  let attempts = 0;
-  while (status.status === 'NOT_FOUND' && attempts < 30) {
-    await new Promise(r => setTimeout(r, 2000));
-    status = await rpcSrv.getTransaction(sendRes.hash);
-    attempts++;
-  }
-  if (status.status !== 'SUCCESS') {
-    throw new Error(`Transaction failed on-chain: ${status.status}`);
-  }
 }
 
 export function useFactoryContract() {
@@ -142,41 +116,20 @@ export function useFactoryContract() {
 
       // Step 2: Register in the Registry (user signs + submits)
       if (onStatusChange) onStatusChange('Step 2/2: Registering in global registry...');
-      const sourceAccount = await server.loadAccount(pubKey);
       const registryContract = new Contract(FACTORY_CONTRACT_ID);
-      
-      let regTx = new TransactionBuilder(sourceAccount, {
+      const regOp = registryContract.call(
+        'register_campaign',
+        nativeToScVal(pubKey, { type: 'address' }),
+        nativeToScVal(contractId, { type: 'address' }),
+        nativeToScVal(params.title, { type: 'string' })
+      );
+
+      await submitTransaction(pubKey, regOp, {
         fee: '1000000',
-        networkPassphrase: NETWORK_PASSPHRASE,
-      })
-        .addOperation(
-          registryContract.call(
-            'register_campaign',
-            nativeToScVal(pubKey, { type: 'address' }),
-            nativeToScVal(contractId, { type: 'address' }),
-            nativeToScVal(params.title, { type: 'string' })
-          )
-        )
-        .setTimeout(120)
-        .build();
-
-      const simRes = await rpcServer.simulateTransaction(regTx);
-      if (rpc.Api.isSimulationError(simRes)) {
-        throw new Error(typeof simRes.error === 'string' ? simRes.error : JSON.stringify(simRes.error));
-      }
-      regTx = rpc.assembleTransaction(regTx, simRes).build();
-
-      if (onStatusChange) onStatusChange('Please approve registry signature...');
-      const signRes = await StellarWalletsKit.signTransaction(regTx.toXdr(), {
-        networkPassphrase: NETWORK_PASSPHRASE,
+        timeout: 120,
+        pollAttempts: 30,
+        onStatusChange,
       });
-
-      if (!signRes?.signedTxXdr) {
-        throw new Error('Registry transaction rejected by user.');
-      }
-
-      if (onStatusChange) onStatusChange('Confirming registration...');
-      await sendAndConfirm(rpcServer, signRes.signedTxXdr);
 
       return contractId;
 

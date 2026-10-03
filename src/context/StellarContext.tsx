@@ -72,7 +72,6 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
   const socketRef = useRef<Socket | null>(null);
   const isSocketConnectedRef = useRef(false);
-  const [, setIsSocketConnected] = useState(false); // Used to trigger render when connected/disconnected if needed
 
   useEffect(() => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL;
@@ -86,7 +85,6 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
     socket.on('connect', () => {
       console.log('[socket] connected', socket.id);
-      setIsSocketConnected(true);
       isSocketConnectedRef.current = true;
       socket.emit('subscribe_campaign', activeContractId);
     });
@@ -131,7 +129,6 @@ export function StellarProvider({ children }: { children: ReactNode }) {
 
     socket.on('disconnect', (reason) => {
       console.log('[socket] disconnected:', reason);
-      setIsSocketConnected(false);
       isSocketConnectedRef.current = false;
     });
 
@@ -187,30 +184,6 @@ export function StellarProvider({ children }: { children: ReactNode }) {
       }
     } catch (e) {
       console.error("Failed to fetch campaign state:", e);
-    }
-  }, [activeContractId]);
-
-  const fetchRecentEvents = useCallback(async (startLedger: number) => {
-    try {
-      // Capture the requested ID to prevent stale closures
-      const requestedContractId = activeContractId;
-      const result = await fetchRecentEventsData(requestedContractId, startLedger);
-      
-      if (result && result.events && result.events.length > 0) {
-        setRecentDonations((prev) => {
-          // Guard: if activeContractId changed mid-flight, discard these events!
-          // We can't access current state inside setRecentDonations directly 
-          // without a ref, but fetchRecentEvents is recreated when activeContractId changes.
-          // By the time it resolves, if we still call setter, we might overwrite.
-          // In the caller (useEffect), we enforce the activeContractId check before applying.
-          return [...result.events.reverse(), ...prev].filter((v, i, a) => a.findIndex(t => (t.id === v.id)) === i);
-        });
-        return true;
-      }
-      return false;
-    } catch (e: any) {
-      console.error("Failed to fetch events:", e?.message || e);
-      return false;
     }
   }, [activeContractId]);
 

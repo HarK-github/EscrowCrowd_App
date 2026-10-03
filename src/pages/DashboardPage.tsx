@@ -4,13 +4,12 @@ import { useNavigate } from 'react-router-dom';
 import { useStellar } from '../context/StellarContext';
 import { useCrowdfundingContract, TxStatus } from '../hooks/useCrowdfundingContract';
 import noLoopAnim from '../assets/noloopanim.mp4';
-import { rpcServer } from '../config';
 import { useToast } from '../components/Toast';
 import { ContractInfoPanel } from '../components/ContractInfoPanel';
 import { Navbar } from '../components/Navbar';
 
 export function DashboardPage() {
-  const { pubKey, balance, campaign, recentDonations, disconnectWallet, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId, customCampaigns } = useStellar();
+  const { pubKey, balance, campaign, recentDonations, fetchBalance, fetchCampaignState, addDonationEvent, appError, activeContractId } = useStellar();
   const { toast } = useToast();
   const { donate, donateGasless, withdraw, isSubmitting, fetchContractBalance } = useCrowdfundingContract(activeContractId);
   const navigate = useNavigate();
@@ -159,43 +158,25 @@ export function DashboardPage() {
         hash = await donate(pubKey, amount, statusHandler);
       }
 
-      // ── Confirmation polling (identical for both paths) ──────────────────
-      const sendRes = { status: 'PENDING', hash };
-
-      if (sendRes.status === 'PENDING') {
-        setTxStatus('confirming');
-        setTxMessage('Waiting for confirmation on Stellar...');
-        let getTxRes = await rpcServer.getTransaction(sendRes.hash);
-        while (getTxRes.status === 'NOT_FOUND') {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          getTxRes = await rpcServer.getTransaction(sendRes.hash);
-        }
-        if (getTxRes.status === 'SUCCESS') {
-          const donatedAmount = parseFloat(amount);
-          addDonationEvent({
-            id: sendRes.hash,
-            donor: pubKey,
-            amount: donatedAmount,
-            timestamp: new Date().toISOString(),
-          });
-          setTxStatus('success');
-          setTxMessage('Donation successful!');
-          setTxHash(sendRes.hash);
-          fetchBalance(pubKey);
-          setAmount('');
-          toast(
-            isGaslessMode
-              ? 'Donation successful! (Gas sponsored by EscrowCrowd)'
-              : 'Donation successful!',
-            'success'
-          );
-          fetchCampaignState();
-        } else {
-          throw new Error('Transaction failed on network.');
-        }
-      } else {
-        throw new Error('Transaction submission failed.');
-      }
+      const donatedAmount = parseFloat(amount);
+      addDonationEvent({
+        id: hash,
+        donor: pubKey,
+        amount: donatedAmount,
+        timestamp: new Date().toISOString(),
+      });
+      setTxStatus('success');
+      setTxMessage('Donation successful!');
+      setTxHash(hash);
+      fetchBalance(pubKey);
+      setAmount('');
+      toast(
+        isGaslessMode
+          ? 'Donation successful! (Gas sponsored by EscrowCrowd)'
+          : 'Donation successful!',
+        'success'
+      );
+      fetchCampaignState();
     } catch (err: any) {
       console.error(err);
       setTxStatus('error');
@@ -217,27 +198,13 @@ export function DashboardPage() {
         else if (msg.includes('Submitting')) setTxStatus('confirming');
       });
       
-      const sendRes = { status: 'PENDING', hash };
-      if (sendRes.status === 'PENDING') {
-        setTxStatus('confirming');
-        setTxMessage('Waiting for confirmation on Stellar...');
-        let getTxRes = await rpcServer.getTransaction(sendRes.hash);
-        while (getTxRes.status === 'NOT_FOUND') {
-          await new Promise(resolve => setTimeout(resolve, 2000));
-          getTxRes = await rpcServer.getTransaction(sendRes.hash);
-        }
-        if (getTxRes.status === 'SUCCESS') {
-          setTxStatus('success');
-          setTxMessage('Withdrawal successful!');
-          setTxHash(sendRes.hash);
-          fetchBalance(pubKey);
-          setIsWithdrawnOnChain(true);
-          toast("Withdrawal successful!", "success");
-          fetchCampaignState();
-        } else {
-          throw new Error('Transaction failed on network.');
-        }
-      }
+      setTxStatus('success');
+      setTxMessage('Withdrawal successful!');
+      setTxHash(hash);
+      fetchBalance(pubKey);
+      setIsWithdrawnOnChain(true);
+      toast("Withdrawal successful!", "success");
+      fetchCampaignState();
     } catch (err: any) {
       console.error(err);
       setTxStatus('error');

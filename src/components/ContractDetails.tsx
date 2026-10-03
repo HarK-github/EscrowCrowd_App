@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import {
   getExplorerContractUrl,
-} from '../config/contracts';
+} from '../config';
 import { useFactoryContract } from '../hooks/useFactoryContract';
 
 export function ContractDetails() {
