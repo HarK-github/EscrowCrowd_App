@@ -1,22 +1,30 @@
-# Soroban Project
+# EscrowCrowd Soroban Smart Contracts
 
-## Project Structure
+This directory contains the Soroban smart contracts powering the EscrowCrowd platform on the Stellar network.
 
-This repository uses the recommended structure for a Soroban project:
+## Contracts
 
-```text
-.
-├── contracts
-│   └── hello_world
-│       ├── src
-│       │   ├── lib.rs
-│       │   └── test.rs
-│       └── Cargo.toml
-├── Cargo.toml
-└── README.md
+### 1. `crowdfund`
+The primary crowdfunding smart contract deployed for each campaign:
+- **`create_campaign`**: Initializes the campaign with creator address, accepted token (XLM SAC), funding goal (stroops), and Unix deadline.
+- **`donate`**: Transfers funds from donor into contract escrow and updates total raised amount and individual contributions.
+- **`get_campaign_state`**: Read-only query returning current state (`creator`, `goal`, `deadline`, `total_raised`, `token`, `status`).
+- **`withdraw`**: Allows the campaign creator to claim all collected funds once the deadline passes and the funding goal is met.
+
+### 2. `factory`
+The global campaign registry contract:
+- **`register_campaign`**: Registers a newly deployed `CrowdfundContract` instance with its creator and title metadata.
+- **`get_all_campaigns`**: Returns a paginated list of all active/past campaign contract addresses.
+- **`get_campaign_metadata`**: Returns metadata (`creator`, `title`, `created_at`) for a registered campaign address.
+
+## Building & Testing
+
+To run tests across all contracts:
+```bash
+cargo test
 ```
 
-- New Soroban contracts can be put in `contracts`, each in their own directory. There is already a `hello_world` contract in there to get you started.
-- If you initialized this project with any other example contracts via `--with-example`, those contracts will be in the `contracts` directory as well.
-- Contracts should have their own `Cargo.toml` files that rely on the top-level `Cargo.toml` workspace for their dependencies.
-- Frontend libraries can be added to the top-level directory as well. If you initialized this project with a frontend template via `--frontend-template` you will have those files already included.
+To build contract WASM bytecode:
+```bash
+stellar contract build
+```

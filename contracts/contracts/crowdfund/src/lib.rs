@@ -1,6 +1,6 @@
 #![no_std]
 use soroban_sdk::{
-    contract, contractimpl, contracttype, token, Address, Env, String, Symbol
+    contract, contractimpl, contracttype, token, Address, Env, String
 };
 
 #[contracttype]
@@ -157,3 +157,6 @@ impl CrowdfundContract {
         token_client.transfer(&env.current_contract_address(), &creator, &total_raised);
     }
 }
+
+mod test;
+

@@ -6,7 +6,7 @@ use soroban_sdk::{testutils::Address as _, Env, String};
 #[test]
 fn test_register_and_get_campaigns() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, ProjectFactory);
+    let contract_id = env.register(ProjectFactory, ());
     let client = ProjectFactoryClient::new(&env, &contract_id);
 
     let creator1 = Address::generate(&env);
@@ -44,7 +44,7 @@ fn test_register_and_get_campaigns() {
 #[should_panic(expected = "Campaign already registered")]
 fn test_register_duplicate_campaign() {
     let env = Env::default();
-    let contract_id = env.register_contract(None, ProjectFactory);
+    let contract_id = env.register(ProjectFactory, ());
     let client = ProjectFactoryClient::new(&env, &contract_id);
 
     let creator = Address::generate(&env);
