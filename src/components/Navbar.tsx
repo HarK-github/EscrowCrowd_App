@@ -3,8 +3,7 @@ import { Link, useLocation } from 'react-router-dom';
 import { Wallet, LogOut, ChevronDown, PlusCircle, Rocket, Compass } from 'lucide-react';
 import { useStellar } from '../context/StellarContext';
 import { CROWDFUND_CONTRACT_ID } from '../config';
-import { CreateCampaignModal } from './CreateCampaignModal';
-import { BrowseCampaignsModal } from './BrowseCampaignsModal';
+import { CreateCampaignModal, BrowseCampaignsModal } from './CampaignModals';
 
 export function Navbar() {
   const { pubKey, balance, connectWallet, disconnectWallet, activeContractId, globalCampaigns, setActiveContractId } = useStellar();

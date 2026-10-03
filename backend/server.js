@@ -15,8 +15,7 @@ import {
 } from './streams.js';
 import { enqueueSettlement } from './queue.js';
 import { startWorker } from './worker.js';
-import { validateInnerTx, buildFeeBump, getSponsorKeypair, sponsorAvailable, setSponsorAvailable } from './sponsor.js';
-import { checkRateLimit } from './rateLimit.js';
+import { validateInnerTx, buildFeeBump, getSponsorKeypair, sponsorAvailable, setSponsorAvailable, checkRateLimit } from './sponsor.js';
 
 const app = express();
 // Trust the first proxy hop so req.ip is the real client IP, not the proxy IP.

@@ -105,3 +105,30 @@ Focus: Replace obscure / advanced JavaScript patterns with straightforward, read
     - **Simplified Replacement:** Delete file.
 
 **Review Savings:** -215 lines possible without breaking any functionality.
+
+
+---
+
+## Completed File Consolidations (Over-Decomposition Reduction)
+
+1. **`ContractDetails.tsx` + `ContractInfoPanel.tsx` -> `src/components/ContractInfoPanel.tsx`**
+   - Merged the deployed contract list display directly into its parent collapsible panel.
+   - Removed `src/components/ContractDetails.tsx`.
+
+2. **`Features.tsx` -> `src/pages/LandingPage.tsx`**
+   - Inlined static marketing feature cards into the landing page where it was uniquely consumed.
+   - Removed `src/components/Features.tsx`.
+
+3. **`BrowseCampaignsModal.tsx` + `CreateCampaignModal.tsx` -> `src/components/CampaignModals.tsx`**
+   - Grouped related modal dialogs opened by `Navbar.tsx` into a single module.
+   - Removed `BrowseCampaignsModal.tsx` and `CreateCampaignModal.tsx`.
+
+4. **`useFactoryContract.ts` + `useCrowdfundingContract.ts` -> `src/hooks/useCrowdfundingContract.ts`**
+   - Consolidated factory registration, contract deployment, and crowdfund hook functions into one cohesive contract hook file.
+   - Removed `src/hooks/useFactoryContract.ts`.
+
+5. **`backend/rateLimit.js` + `backend/sponsor.js` -> `backend/sponsor.js`**
+   - Combined rate limiting throttles directly with gasless transaction validation in the sponsor module.
+   - Removed `backend/rateLimit.js`.
+
+**Result:** Eliminated 5 unnecessary file layers while keeping 100% of test suites passing (`vitest run`, `vite build`, `node --test`).

@@ -228,3 +228,43 @@ export let sponsorAvailable = false;
 export function setSponsorAvailable(val) {
   sponsorAvailable = val;
 }
+
+// ─── In-memory Rate Limiting ───────────────────────────────────────────────
+const rateLimitStore = new Map();
+const WINDOW_MS = 60_000;
+const MAX_PER_IP = 5;
+const MAX_PER_WALLET = 3;
+
+function getRateLimitWindow(key) {
+  const now = Date.now();
+  const timestamps = (rateLimitStore.get(key) || []).filter(t => now - t < WINDOW_MS);
+  rateLimitStore.set(key, timestamps);
+  return timestamps;
+}
+
+export function checkRateLimit(req, walletAddress) {
+  const ip = req.ip || req.socket?.remoteAddress || 'unknown';
+
+  const ipWindow = getRateLimitWindow(`ip:${ip}`);
+  if (ipWindow.length >= MAX_PER_IP) {
+    throw Object.assign(
+      new Error(`Rate limit exceeded. Try again in a minute. (IP: ${ip})`),
+      { status: 429 }
+    );
+  }
+
+  const walletWindow = getRateLimitWindow(`wallet:${walletAddress}`);
+  if (walletWindow.length >= MAX_PER_WALLET) {
+    throw Object.assign(
+      new Error(`Rate limit exceeded for this wallet. Try again in a minute.`),
+      { status: 429 }
+    );
+  }
+
+  const now = Date.now();
+  ipWindow.push(now);
+  rateLimitStore.set(`ip:${ip}`, ipWindow);
+  walletWindow.push(now);
+  rateLimitStore.set(`wallet:${walletAddress}`, walletWindow);
+}
+

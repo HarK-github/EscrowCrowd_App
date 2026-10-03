@@ -12,8 +12,8 @@ import {
   fetchRecentEventsData,
   CampaignState,
   DonationEvent,
+  useFactoryContract,
 } from '../hooks/useCrowdfundingContract';
-import { useFactoryContract } from '../hooks/useFactoryContract';
 
 StellarWalletsKit.init({
   network: Networks.TESTNET,
