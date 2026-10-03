@@ -411,21 +411,53 @@ export function DashboardPage() {
                   </div>
                 )}
 
-                {/* Gasless Toggle — shown only when sponsor is available */}
+                {/* Gasless / Sponsor Gas Button — prominent & accessible */}
                 {sponsorAvailable && (
                   <button
                     type="button"
                     disabled={isPending || (campaign && campaign.status !== 'active')}
                     onClick={() => setIsGaslessMode((v) => !v)}
-                    className={`flex items-center gap-2 text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                    className={`w-full py-3.5 px-4 rounded-xl border flex items-center justify-between transition-all duration-300 text-left disabled:opacity-40 disabled:cursor-not-allowed ${
                       isGaslessMode
-                        ? 'bg-yellow-500/15 border-yellow-500/40 text-yellow-400'
-                        : 'bg-white/5 border-white/10 text-muted-foreground hover:text-white hover:bg-white/10'
+                        ? 'bg-yellow-500/15 border-yellow-500/50 text-white shadow-[0_0_20px_rgba(234,179,8,0.2)]'
+                        : 'bg-white/5 border-white/10 text-neutral-300 hover:border-yellow-500/40 hover:bg-yellow-500/5 hover:text-white'
                     }`}
-                    title={isGaslessMode ? 'Click to pay gas yourself' : 'Let EscrowCrowd pay your transaction fee'}
+                    title={isGaslessMode ? 'Click to pay network fees yourself' : 'Let EscrowCrowd sponsor your Soroban gas fee'}
                   >
-                    <Zap size={12} className={isGaslessMode ? 'fill-yellow-400' : ''} />
-                    {isGaslessMode ? 'Gas sponsored ✓' : 'Sponsor my gas'}
+                    <div className="flex items-center gap-3">
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center transition-colors ${
+                        isGaslessMode ? 'bg-yellow-400 text-black shadow-md' : 'bg-white/10 text-yellow-400'
+                      }`}>
+                        <Zap size={20} className={isGaslessMode ? 'fill-black' : 'fill-yellow-400'} />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-semibold tracking-tight text-white">
+                            {isGaslessMode ? 'Gas Sponsored Mode Enabled' : 'Sponsor My Gas Fee'}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${
+                            isGaslessMode 
+                              ? 'bg-yellow-400/20 text-yellow-300 border-yellow-400/40' 
+                              : 'bg-emerald-400/15 text-emerald-300 border-emerald-400/30'
+                          }`}>
+                            {isGaslessMode ? 'Active' : 'Zero Fee'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-0.5">
+                          {isGaslessMode 
+                            ? 'EscrowCrowd pays your Stellar transaction fee' 
+                            : 'Click to donate without paying Stellar transaction fees'}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className={`w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
+                      isGaslessMode 
+                        ? 'border-yellow-400 bg-yellow-400 text-black scale-105' 
+                        : 'border-white/20 text-transparent'
+                    }`}>
+                      <CheckCircle2 size={16} className={isGaslessMode ? 'text-black' : 'opacity-0'} />
+                    </div>
                   </button>
                 )}
 

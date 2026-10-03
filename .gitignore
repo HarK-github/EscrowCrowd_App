@@ -6,13 +6,23 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
+build.log
 
+# Environment variables & secrets
+.env
+.env*
+*.env
+backend/.env
+
+# Dependencies & Build artifacts
 node_modules
 dist
 dist-ssr
 *.local
+.vercel
+contracts/target
 
-# Editor directories and files
+# Editor & OS files
 .vscode/*
 !.vscode/extensions.json
 .idea
@@ -22,6 +32,9 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-\n.env
-.vercel
-.env*
+
+# Scratch & Planning files
+plan.md
+sub_task.md
+logs.md
+test_kit.js
